@@ -12,7 +12,7 @@ library(tidyverse)
 library(DAAG)
 ```
 
-```{}
+```         
 ```
 
 1.  The Iowa data set `iowa.csv` is a toy example that summarises the yield of wheat (bushels per acre) for the state of Iowa between 1930-1962. In addition to yield, year, rainfall and temperature were recorded as the main predictors of yield.

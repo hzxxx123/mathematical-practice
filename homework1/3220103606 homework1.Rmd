@@ -351,3 +351,63 @@ mtext("Note: Vertical distances represent multiplicative differences in area",
 ```
 
 关键结论：两种对数表示都揭示了Winnipeg湖的绝对主导地位（占所有湖泊总面积的约70%），但未显示海拔与面积的显著相关性。对数变换对于可视化跨度大的面积数据至关重要。
+
+
+## MB.CH1.7
+
+用以下代码完成。
+
+```{r}
+Manitoba.lakes <- data.frame(
+  elevation = c(217, 254, 248, 254, 253, 227, 178, 207, 217),
+  area = c(24387, 5374, 4624, 2247, 1353, 1223, 1151, 755, 657)
+)
+
+rownames(Manitoba.lakes) <- c("Winnipeg", "Winnipegosis", "Manitoba", 
+                             "SouthernIndian", "Cedar", "Island", 
+                             "Gods", "Cross", "Playgreen")
+
+
+# (a) linear scale
+dotchart(Manitoba.lakes$area,
+         labels = rownames(Manitoba.lakes),
+         main = "lake Area (linear scale)",
+         xlab = "Area (km*km)",
+         pch = 19, col = "blue",
+         cex = 0.8)
+
+# (b) logarithmic scale
+dotchart(log2(Manitoba.lakes$area),
+         labels = rownames(Manitoba.lakes),
+         main = "lake Area (logarithmic scale: log₂)",
+         xlab = "log2(Area)",
+         pch = 19, col = "red",
+         cex = 0.8)
+
+```
+
+
+## MB.CH1.8
+
+```{r}
+Manitoba.lakes <- data.frame(
+  elevation = c(217, 254, 248, 254, 253, 227, 178, 207, 217),
+  area = c(24387, 5374, 4624, 2247, 1353, 1223, 1151, 755, 657),
+  row.names = c("Winnipeg", "Winnipegosis", "Manitoba", "SouthernIndian", 
+                "Cedar", "Island", "Gods", "Cross", "Playgreen")
+)
+
+# 计算水域面积下界
+water_area_lower_bound <- sum(Manitoba.lakes$area)
+
+# 显示结果
+cat("马尼托巴省水域面积下界:", 
+    format(water_area_lower_bound, big.mark = ","), 
+    "平方公里\n")
+
+cat("\n说明：",
+    "\n• 此计算基于马尼托巴省9个主要湖泊的面积总和",
+    "\n• 实际水域面积更大（包含未统计的小型湖泊、河流和湿地）",
+    "\n• 因此", format(water_area_lower_bound, big.mark = ","), 
+    "平方公里仅为最小估计值")
+```

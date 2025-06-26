@@ -625,4 +625,89 @@ Y轴刻度：对数变换后等距
 
 关键结论：两种对数表示都揭示了Winnipeg湖的绝对主导地位（占所有湖泊总面积的约70\%），但未显示海拔与面积的显著相关性。对数变换对于可视化跨度大的面积数据至关重要。
 
+\subsection{MB.CH1.7}\label{mb.ch1.7}
+
+用以下代码完成。
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{Manitoba.lakes }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+  \AttributeTok{elevation =} \FunctionTok{c}\NormalTok{(}\DecValTok{217}\NormalTok{, }\DecValTok{254}\NormalTok{, }\DecValTok{248}\NormalTok{, }\DecValTok{254}\NormalTok{, }\DecValTok{253}\NormalTok{, }\DecValTok{227}\NormalTok{, }\DecValTok{178}\NormalTok{, }\DecValTok{207}\NormalTok{, }\DecValTok{217}\NormalTok{),}
+  \AttributeTok{area =} \FunctionTok{c}\NormalTok{(}\DecValTok{24387}\NormalTok{, }\DecValTok{5374}\NormalTok{, }\DecValTok{4624}\NormalTok{, }\DecValTok{2247}\NormalTok{, }\DecValTok{1353}\NormalTok{, }\DecValTok{1223}\NormalTok{, }\DecValTok{1151}\NormalTok{, }\DecValTok{755}\NormalTok{, }\DecValTok{657}\NormalTok{)}
+\NormalTok{)}
+
+\FunctionTok{rownames}\NormalTok{(Manitoba.lakes) }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}\StringTok{"Winnipeg"}\NormalTok{, }\StringTok{"Winnipegosis"}\NormalTok{, }\StringTok{"Manitoba"}\NormalTok{, }
+                             \StringTok{"SouthernIndian"}\NormalTok{, }\StringTok{"Cedar"}\NormalTok{, }\StringTok{"Island"}\NormalTok{, }
+                             \StringTok{"Gods"}\NormalTok{, }\StringTok{"Cross"}\NormalTok{, }\StringTok{"Playgreen"}\NormalTok{)}
+
+
+\CommentTok{\# (a) linear scale}
+\FunctionTok{dotchart}\NormalTok{(Manitoba.lakes}\SpecialCharTok{$}\NormalTok{area,}
+         \AttributeTok{labels =} \FunctionTok{rownames}\NormalTok{(Manitoba.lakes),}
+         \AttributeTok{main =} \StringTok{"lake Area (linear scale)"}\NormalTok{,}
+         \AttributeTok{xlab =} \StringTok{"Area (km*km)"}\NormalTok{,}
+         \AttributeTok{pch =} \DecValTok{19}\NormalTok{, }\AttributeTok{col =} \StringTok{"blue"}\NormalTok{,}
+         \AttributeTok{cex =} \FloatTok{0.8}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{3220103606-homework1_files/figure-latex/unnamed-chunk-17-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# (b) logarithmic scale}
+\FunctionTok{dotchart}\NormalTok{(}\FunctionTok{log2}\NormalTok{(Manitoba.lakes}\SpecialCharTok{$}\NormalTok{area),}
+         \AttributeTok{labels =} \FunctionTok{rownames}\NormalTok{(Manitoba.lakes),}
+         \AttributeTok{main =} \StringTok{"lake Area (logarithmic scale: log₂)"}\NormalTok{,}
+         \AttributeTok{xlab =} \StringTok{"log2(Area)"}\NormalTok{,}
+         \AttributeTok{pch =} \DecValTok{19}\NormalTok{, }\AttributeTok{col =} \StringTok{"red"}\NormalTok{,}
+         \AttributeTok{cex =} \FloatTok{0.8}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{3220103606-homework1_files/figure-latex/unnamed-chunk-17-2.pdf}
+
+\subsection{MB.CH1.8}\label{mb.ch1.8}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{Manitoba.lakes }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+  \AttributeTok{elevation =} \FunctionTok{c}\NormalTok{(}\DecValTok{217}\NormalTok{, }\DecValTok{254}\NormalTok{, }\DecValTok{248}\NormalTok{, }\DecValTok{254}\NormalTok{, }\DecValTok{253}\NormalTok{, }\DecValTok{227}\NormalTok{, }\DecValTok{178}\NormalTok{, }\DecValTok{207}\NormalTok{, }\DecValTok{217}\NormalTok{),}
+  \AttributeTok{area =} \FunctionTok{c}\NormalTok{(}\DecValTok{24387}\NormalTok{, }\DecValTok{5374}\NormalTok{, }\DecValTok{4624}\NormalTok{, }\DecValTok{2247}\NormalTok{, }\DecValTok{1353}\NormalTok{, }\DecValTok{1223}\NormalTok{, }\DecValTok{1151}\NormalTok{, }\DecValTok{755}\NormalTok{, }\DecValTok{657}\NormalTok{),}
+  \AttributeTok{row.names =} \FunctionTok{c}\NormalTok{(}\StringTok{"Winnipeg"}\NormalTok{, }\StringTok{"Winnipegosis"}\NormalTok{, }\StringTok{"Manitoba"}\NormalTok{, }\StringTok{"SouthernIndian"}\NormalTok{, }
+                \StringTok{"Cedar"}\NormalTok{, }\StringTok{"Island"}\NormalTok{, }\StringTok{"Gods"}\NormalTok{, }\StringTok{"Cross"}\NormalTok{, }\StringTok{"Playgreen"}\NormalTok{)}
+\NormalTok{)}
+
+\CommentTok{\# 计算水域面积下界}
+\NormalTok{water\_area\_lower\_bound }\OtherTok{\textless{}{-}} \FunctionTok{sum}\NormalTok{(Manitoba.lakes}\SpecialCharTok{$}\NormalTok{area)}
+
+\CommentTok{\# 显示结果}
+\FunctionTok{cat}\NormalTok{(}\StringTok{"马尼托巴省水域面积下界:"}\NormalTok{, }
+    \FunctionTok{format}\NormalTok{(water\_area\_lower\_bound, }\AttributeTok{big.mark =} \StringTok{","}\NormalTok{), }
+    \StringTok{"平方公里}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 马尼托巴省水域面积下界: 41,771 平方公里
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{说明："}\NormalTok{,}
+    \StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{• 此计算基于马尼托巴省9个主要湖泊的面积总和"}\NormalTok{,}
+    \StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{• 实际水域面积更大（包含未统计的小型湖泊、河流和湿地）"}\NormalTok{,}
+    \StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{• 因此"}\NormalTok{, }\FunctionTok{format}\NormalTok{(water\_area\_lower\_bound, }\AttributeTok{big.mark =} \StringTok{","}\NormalTok{), }
+    \StringTok{"平方公里仅为最小估计值"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## 说明： 
+## • 此计算基于马尼托巴省9个主要湖泊的面积总和 
+## • 实际水域面积更大（包含未统计的小型湖泊、河流和湿地） 
+## • 因此 41,771 平方公里仅为最小估计值
+\end{verbatim}
+
 \end{document}
