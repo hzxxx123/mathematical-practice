@@ -241,7 +241,7 @@ se_2006
 
 The file `gmp-2013.dat` contains measurements for 2013.  Load it, and use `plm()` and `plm.jackknife` to estimate the parameters of the model for 2013, and their standard errors.  Have the parameters of the model changed significantly?
 
-用以下代码完成，结果显示，没有发生显著变化
+用以下代码完成，结果显示，$y_0$的变化不显著，而a的变化相对较为显著。
 
 ```{r}
 gmp2013 <- read.table('data/gmp-2013.dat', header = TRUE, 
