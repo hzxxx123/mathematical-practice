@@ -63,9 +63,9 @@ plot(pcgmp ~ pop, data = gmp, log = "xy",
 
 # 添加三条理论曲线
 curve(6611 * x^(1/8), add = TRUE, col = "blue", lwd = 2)      # 默认值
-curve(5000 * x^0.10, add = TRUE, col = "red", lwd = 2)        # a=0.1
+curve(6611 * x^0.10, add = TRUE, col = "red", lwd = 2)        # a=0.1
 curve(6611 * x^0.15, add = TRUE, col = "darkgreen", lwd = 2)  # a=0.15
-legend("topright", legend = c("y0=6611, a=0.125", "y0=5000, a=0.10", "y0=6611, a=0.15"),
+legend("topright", legend = c("y0=6611, a=0.125", "y0=6611, a=0.10", "y0=6611, a=0.15"),
        col = c("blue", "red", "darkgreen"), lwd = 2)
 ```
 
