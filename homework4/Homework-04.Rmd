@@ -44,59 +44,48 @@ Create a new data frame which records, for every doctor, for every month, whethe
 用以下代码完成：
 
 ```{r}
-ckm_nodes <- ckm_nodes %>% 
-  mutate(id = row_number())
-
-# 2. 创建新数据框
-doctors <- ckm_nodes$id
-months <- 1:17
-
-# 创建医生与月份的所有组合
-df <- expand_grid(doctor = doctors, month = months)
-
-# 添加医生的采用日期
-df <- df %>% 
-  left_join(select(ckm_nodes, id, adoption_date), by = c("doctor" = "id"))
-
-# 创建采用指标列
-df <- df %>%
-  mutate(
-    adopted = as.integer(adoption_date == month),
-    before_adopted = as.integer(adoption_date < month)
-  )
-
-# 预计算每位医生的联系人采用日期
-contact_adopters <- apply(ckm_network, 1, function(row) {
-  contacts <- which(row > 0)
-  ckm_nodes$adoption_date[contacts]
-})
-
-# 计算联系人采用数量的函数
-calculate_contacts <- function(doctor_index, current_month) {
-  contact_dates <- contact_adopters[[doctor_index]]
-  contacts_before <- sum(contact_dates < current_month, na.rm = TRUE)
-  contacts_at_or_before <- sum(contact_dates <= current_month, na.rm = TRUE)
-  data.frame(
-    count_contacts_before = contacts_before,
-    count_contacts_at_or_before = contacts_at_or_before
-  )
-}
-
-# 为每行数据计算联系人指标
-contact_counts <- map2_dfr(
-  .x = match(df$doctor, doctors),
-  .y = df$month,
-  .f = ~ calculate_contacts(.x, .y)
+# 添加医生 ID 列（使用行号作为唯一标识）
+ckm_nodes$doctor_id <- 1:nrow(ckm_nodes)
+n_doctors <- nrow(ckm_nodes)
+adoption_dates <- ckm_nodes$adoption_date
+# 创建所有医生-月份组合 (125 医生 × 17 个月 = 2125 行)
+doctor_months <- expand.grid(
+doctor_id = ckm_nodes$doctor_id,
+month = 1:17,
+stringsAsFactors = FALSE
 )
-
-# 合并到主数据框
-df <- bind_cols(df, contact_counts) %>%
-  select(-adoption_date)
-
-# 验证数据框结构
-cat("行数:", nrow(df), "(应为125医生×17月=2125)\n")
-cat("列数:", ncol(df), "(应为6)\n")
-cat("列名:", paste(colnames(df), collapse = ", "), "\n")
+# 添加关键指标列
+doctor_months$adopted_this_month <- with(doctor_months, {
+as.integer(adoption_dates[doctor_id] == month)
+})
+doctor_months$already_adopted <- with(doctor_months, {
+as.integer(adoption_dates[doctor_id] < month)
+})
+# 预计算每个医生的邻居索引
+neighbor_indices <- lapply(1:n_doctors, function(i) {
+which(ckm_network[i, ] == 1)
+})
+# 计算邻居采用指标
+doctor_months$n_contacts_adopted_before <- mapply(function(doc_id, t) {
+neighbors <- neighbor_indices[[doc_id]]
+if(length(neighbors) > 0) {
+sum(adoption_dates[neighbors] < t, na.rm = TRUE)
+} else {
+0
+}
+}, doctor_months$doctor_id, doctor_months$month)
+doctor_months$n_contacts_adopted_by_now <- mapply(function(doc_id, t) {
+neighbors <- neighbor_indices[[doc_id]]
+if(length(neighbors) > 0) {
+sum(adoption_dates[neighbors] <= t, na.rm = TRUE)
+} else {
+0
+}
+}, doctor_months$doctor_id, doctor_months$month)
+# 验证结果
+cat(" 行数:", nrow(doctor_months), " 预期: 125 医生 × 17 个月 = 2125\n")
+cat(" 列数:", ncol(doctor_months), " 预期: 6 列")
+cat(" 列名:", paste(colnames(df), collapse = ", "), "\n")
 ```
 
 ### 3.  
@@ -149,30 +138,23 @@ Create a vector of estimated $p_k$ probabilities, using the data frame from (2).
 
 ```{r}
 # 计算 p_k
-p_data <- df %>%
-  filter(before_adopted == 0) %>%  # 只考虑本月前未采用的医生
-  group_by(count_contacts_before) %>%  # 按 k 分组
-  summarise(
-    n = n(),  # 该 k 值的总医生数
-    adopted_this_month = sum(adopted),  # 本月采用的医生数
-    p_k = adopted_this_month / n  # 概率估计
-  ) %>%
-  rename(k = count_contacts_before)  # 重命名列
-
-# 绘制 p_k
+p_data <- doctor_months %>%
+filter(already_adopted == 0) %>% # 只考虑尚未采用的医生
+group_by(n_contacts_adopted_before) %>%
+summarise(
+p_k = mean(adopted_this_month),
+count = n()
+) %>%
+rename(k = n_contacts_adopted_before)
+# 绘图
 ggplot(p_data, aes(x = k, y = p_k)) +
-  geom_point(size = 3, color = "blue") +
-  geom_smooth(method = "loess", se = FALSE, color = "darkblue", linetype = "dashed") +
-  labs(
-    title = "The relationship between adoption probability and the number of previously adopted contacts before the current month",
-    subtitle = expression(paste("estimated ", p[k], " probability")),
-    x = "Number of contacts adopted prior to this month (k)",
-    y = expression(p[k])
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
-  ylim(0, 0.5)  # 根据实际数据范围调整
+geom_point(aes(size = count), color = "blue") +
+geom_smooth(method = "loess", se = FALSE, color = "darkblue") +
+  labs(title = "Adoption Probability vs. Number of Adopted Neighbors Before Current Month (p_k)",
+x = "Number of Adopted Neighbors Before Current Month (k)",
+y = "Adoption Probability (p_k)") +
+scale_size_continuous(name = "Sample Size") +
+theme_minimal()
 ```
 #### c. 
 
@@ -183,30 +165,25 @@ Create a vector of estimated $q_k$ probabilities, using the data frame from (2).
 
 ```{r}
 # 计算 q_k
-q_data <- df %>%
-  filter(before_adopted == 0) %>%  # 只考虑本月前未采用的医生
-  group_by(count_contacts_at_or_before) %>%  # 按 k 分组
-  summarise(
-    n = n(),  # 该 k 值的总医生数
-    adopted_this_month = sum(adopted),  # 本月采用的医生数
-    q_k = adopted_this_month / n  # 概率估计
-  ) %>%
-  rename(k = count_contacts_at_or_before)  # 重命名列
-
-# 绘制 q_k
+q_data <- doctor_months %>%
+filter(already_adopted == 0) %>% # 只考虑尚未采用的医生
+group_by(n_contacts_adopted_by_now) %>%
+summarise(
+q_k = mean(adopted_this_month),
+count = n()
+) %>%
+  rename(k = n_contacts_adopted_by_now)
+# Plot
 ggplot(q_data, aes(x = k, y = q_k)) +
-  geom_point(size = 3, color = "red") +
-  geom_smooth(method = "loess", se = FALSE, color = "darkred", linetype = "dashed") +
-  labs(
-    title = "The relationship between adoption probability and the number of contacts already adopted this month or previously",
-    subtitle = expression(paste("estimated ", q[k], " probability")),
-    x = "Number of contacts already adopted this month or earlier (k)",
-    y = expression(q[k])
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
-  ylim(0, 0.5)  # 根据实际数据范围调整
+geom_point(aes(size = count), color = "red") +
+geom_smooth(method = "loess", se = FALSE, color = "darkred") +
+labs(
+title = "Adoption Probability vs. Number of Adopted Neighbors Up to Current Month (q_k)",
+x = "Number of Adopted Neighbors Up to Current Month (k)",
+y = "Adoption Probability (q_k)"
+) +
+scale_size_continuous(name = "Sample Size") +
+theme_minimal()
 ```
 
 ### 4. 
@@ -222,72 +199,12 @@ Suppose $p_k = a + bk$.  This would mean that each friend who adopts the new dru
 
 
 ```{r}
-# 确保 p_data 存在
-if (!exists("p_data")) {
-  stop("p_data 未定义，请先执行问题3b的代码")
-}
-
-# 拟合线性模型
-linear_model <- lm(p_k ~ k, data = p_data)
-
+# 使用加权最小二乘法估计线性模型（权重为样本量）
+linear_model <- lm(p_k ~ k, data = p_data, weights = count)
 # 获取参数估计
-a_linear <- coef(linear_model)[1]
-b_linear <- coef(linear_model)[2]
-
-# 输出参数估计
-cat("Linear model parameter estimates:\n")
-cat(sprintf("Intercept a = %.4f\n", a_linear))
-cat(sprintf("Slope b = %.4f\n", b_linear))
-
-# 创建可视化
-ggplot(p_data, aes(x = k, y = p_k)) +
-  # 原始数据点
-  geom_point(size = 3, color = "steelblue", alpha = 0.8) +
-  # 线性拟合线
-  geom_smooth(
-    method = "lm", 
-    formula = y ~ x,
-    se = FALSE, 
-    color = "coral",
-    linewidth = 1.5
-  ) +
-  # 参数标注
-  annotate(
-    "text",
-    x = 15,
-    y = 0.05,
-    label = sprintf("p[k] == %.4f + %.4f * k", 
-                   a_linear, 
-                   b_linear),
-    parse = TRUE,
-    size = 5,
-    color = "coral"
-  ) +
-  # 图表标签
-  labs(
-    title = "Linear Model of Adoption Probability",
-    subtitle = "pk = a + b·k (constant marginal effect per contact)",
-    x = "Number of Prior-Adopter Contacts (k)",
-    y = "Adoption Probability (pk)",
-    caption = "Points: Observed probabilities | Line: Linear model fit"
-  ) +
-  # 主题美化
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5),
-    panel.grid.minor = element_blank()
-  ) +
-  # 坐标轴设置
-  scale_x_continuous(
-    breaks = seq(0, 20, by = 2),
-    limits = c(0, 20)
-  ) +
-  scale_y_continuous(
-    limits = c(0, 0.5),
-    breaks = seq(0, 0.5, by = 0.1),
-    labels = scales::percent_format(accuracy = 1)
-  )
+linear_coef <- coef(linear_model)
+cat(" 线性模型估计结果:\n")
+cat(sprintf(" 截距 a = %.4f\n斜率 b = %.4f", linear_coef[1], linear_coef[2]))
 ```
 
 #### b. 
@@ -297,84 +214,17 @@ Suppose $p_k = e^{a+bk}/(1+e^{a+bk})$.  Explain, in words, what this model would
 用以下代码解决：
 
 ```{r}
-# 确保 p_data 存在
-if (!exists("p_data")) {
-  stop("p_data 未定义，请先执行问题3b的代码")
-}
-
-# 拟合 Logistic 模型
+# 使用加权非线性最小二乘法估计 logistic 模型
 logistic_model <- nls(
-  p_k ~ exp(a + b * k) / (1 + exp(a + b * k)),
-  data = p_data,
-  start = list(a = -3, b = 0.2),
-  algorithm = "port",
-  control = nls.control(maxiter = 500, warnOnly = TRUE)
+p_k ~ exp(a + b*k)/(1 + exp(a + b*k)),
+data = p_data,
+weights = count,
+start = list(a = -4, b = 0.1) # 初始值
 )
-
 # 获取参数估计
-a_logistic <- coef(logistic_model)[1]
-b_logistic <- coef(logistic_model)[2]
-
-# 输出参数估计
-cat("\nLogistic model parameter estimates:\n")
-cat(sprintf("a = %.4f\n", a_logistic))
-cat(sprintf("b = %.4f\n", b_logistic))
-
-# 创建预测数据
-k_range <- data.frame(k = seq(0, 20, by = 0.1))
-k_range$logistic_pred <- predict(logistic_model, newdata = k_range)
-
-# 创建可视化
-ggplot(p_data, aes(x = k, y = p_k)) +
-  # 原始数据点
-  geom_point(size = 3, color = "steelblue", alpha = 0.8) +
-  # Logistic 模型曲线
-  geom_line(data = k_range, aes(y = logistic_pred), 
-            color = "forestgreen", linewidth = 1.5) +
-  # 模型形式标注
-  annotate(
-    "text",
-    x = 15,
-    y = 0.05,
-    label = "p[k] == logistic(a + b %.% k)",
-    parse = TRUE,
-    size = 5,
-    color = "forestgreen"
-  ) +
-  # 参数值标注
-  annotate(
-    "text",
-    x = 15,
-    y = 0.03,
-    label = paste0("a = ", round(a_logistic, 4), ", b = ", round(b_logistic, 4)),
-    size = 5,
-    color = "forestgreen"
-  ) +
-  # 图表标签
-  labs(
-    title = "Logistic Model of Adoption Probability",
-    subtitle = "S-shaped diffusion curve with diminishing marginal returns",
-    x = "Number of Prior-Adopter Contacts (k)",
-    y = "Adoption Probability (pk)",
-    caption = "Points: Observed probabilities | Curve: Logistic model fit"
-  ) +
-  # 主题美化
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5),
-    panel.grid.minor = element_blank()
-  ) +
-  # 坐标轴设置
-  scale_x_continuous(
-    breaks = seq(0, 20, by = 2),
-    limits = c(0, 20)
-  ) +
-  scale_y_continuous(
-    limits = c(0, 0.5),
-    breaks = seq(0, 0.5, by = 0.1),
-    labels = scales::percent_format(accuracy = 1)
-  )
+logistic_coef <- coef(logistic_model)
+cat("\nLogistic 模型估计结果:\n")
+cat(sprintf(" 参数 a = %.4f\n参数 b = %.4f", logistic_coef[1], logistic_coef[2]))
 ```
 
 #### c. 
@@ -384,119 +234,36 @@ Plot the values from (3b) along with the estimated curves from (4a) and (4b).  (
 用以下代码解决：
 
 ```{r}
-# 确保所有必要对象存在
-if (!exists("p_data") || !exists("linear_model") || !exists("logistic_model")) {
-  stop("请先执行4a和4b的代码")
-}
+# 生成预测数据
+k_range <- 0:20
+linear_pred <- linear_coef[1] + linear_coef[2]*k_range
+logistic_pred <- exp(logistic_coef[1] + logistic_coef[2]*k_range)/
+(1 + exp(logistic_coef[1] + logistic_coef[2]*k_range))
+# 创建比较数据框
+comparison_df <- data.frame(
+k = rep(k_range, 3),
+Probability = c(p_data$p_k[match(k_range, p_data$k)],
+linear_pred,
+logistic_pred),
+Type = rep(c("Observed", "Linear", "Logistic"), each = length(k_range))
+)
+# 绘图
+ggplot(comparison_df, aes(x = k, y = Probability, color = Type)) +
+geom_point(data = subset(comparison_df, Type == "Observed"),
+aes(size = p_data$count[match(k_range, p_data$k)])) +
+geom_line(data = subset(comparison_df, Type != "Observed"),
+linewidth = 1.2) +
+scale_color_manual(values = c("Observed" = "black",
+"Linear" = "blue",
+"Logistic" = "red")) +
+labs(title = "Comparison of Adoption Probability Models",
+x = "Number of Prior-Adoptee Contacts (k)",
+y = "Adoption Probability (p_k)",
+color = "Model Type") +
+scale_size_continuous(name = "Sample Size", range = c(2, 6)) +
+theme_minimal() +
+theme(legend.position = "bottom")
 
-# 创建预测数据范围
-k_range <- data.frame(k = seq(0, 20, by = 0.1))
-
-# 计算线性模型预测
-k_range$linear_pred <- predict(linear_model, newdata = k_range)
-
-# 计算Logistic模型预测
-k_range$logistic_pred <- predict(logistic_model, newdata = k_range)
-
-# 创建比较图
-ggplot() +
-  # 原始数据点
-  geom_point(
-    data = p_data, 
-    aes(x = k, y = p_k, color = "Observed Data"),
-    size = 3, 
-    alpha = 0.8
-  ) +
-  # 线性模型曲线
-  geom_line(
-    data = k_range,
-    aes(x = k, y = linear_pred, color = "Linear Model"),
-    linewidth = 1.2,
-    linetype = "solid"
-  ) +
-  # Logistic模型曲线
-  geom_line(
-    data = k_range,
-    aes(x = k, y = logistic_pred, color = "Logistic Model"),
-    linewidth = 1.2,
-    linetype = "solid"
-  ) +
-  # 模型标注
-  annotate(
-    "text",
-    x = 5,
-    y = 0.45,
-    label = sprintf("Linear: p[k] == %.4f + %.4f * k", 
-                   coef(linear_model)[1], 
-                   coef(linear_model)[2]),
-    parse = TRUE,
-    size = 4.5,
-    color = "coral"
-  ) +
-  annotate(
-    "text",
-    x = 15,
-    y = 0.1,
-    label = sprintf("Logistic: a == %.4f ~ b == %.4f", 
-                   coef(logistic_model)[1], 
-                   coef(logistic_model)[2]),
-    parse = TRUE,
-    size = 4.5,
-    color = "forestgreen"
-  ) +
-  # 颜色和图例设置
-  scale_color_manual(
-    name = "",
-    values = c(
-      "Observed Data" = "steelblue",
-      "Linear Model" = "coral",
-      "Logistic Model" = "forestgreen"
-    )
-  ) +
-  # 图表标签
-  labs(
-    title = "Comparison of Adoption Probability Models",
-    subtitle = "Observed probabilities vs. model predictions",
-    x = "Number of Prior-Adopter Contacts (k)",
-    y = "Adoption Probability (pₖ)",
-    caption = "Data: Observed probabilities from CKM network study"
-  ) +
-  # 主题美化
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5),
-    legend.position = "bottom",
-    legend.title = element_blank(),
-    panel.grid.minor = element_blank()
-  ) +
-  # 坐标轴设置
-  scale_x_continuous(
-    breaks = seq(0, 20, by = 2),
-    limits = c(0, 20)
-  ) +
-  scale_y_continuous(
-    limits = c(0, 0.5),
-    breaks = seq(0, 0.5, by = 0.1),
-    labels = scales::percent_format(accuracy = 1)
-  ) +
-  # 添加模型比较说明
-  annotate(
-    "text",
-    x = 10,
-    y = 0.02,
-    label = "Logistic model better captures S-shaped diffusion pattern",
-    size = 5,
-    color = "black",
-    fontface = "bold"
-  )
-# 模型选择建议
-cat("\n模型选择建议:\n")
-cat("推荐使用Logistic模型，原因如下:\n")
-cat("1. 它捕捉了典型的S形扩散模式\n")
-cat("2. 预测值始终在0到1的合理范围内\n")
-cat("3. 考虑了额外联系人的边际效应递减规律\n")
-cat("4. 对观测数据拟合更好（特别是在高k值区域）\n")
 ```
 
 _For quibblers, pedants, and idle hands itching for work to do_: The $p_k$ values from problem 3 aren't all equally precise, because they come from different numbers of observations.  Also, if each doctor with $k$ adoptee contacts is independently deciding whether or not to adopt with probability $p_k$, then the variance in the number of adoptees will depend on $p_k$.  Say that the actual proportion who decide to adopt is $\hat{p}_k$.  A little probability (exercise!) shows that in this situation, $\mathbb{E}[\hat{p}_k] = p_k$, but that $\mathrm{Var}[\hat{p}_k] = p_k(1-p_k)/n_k$, where $n_k$ is the number of doctors in that situation.  (We estimate probabilities more precisely when they're really extreme [close to 0 or 1], and/or we have lots of observations.)  We can estimate that variance as $\hat{V}_k = \hat{p}_k(1-\hat{p}_k)/n_k$.  Find the $\hat{V}_k$, and then re-do the estimation in (4a) and (4b) where the squared error for $p_k$ is divided by $\hat{V}_k$.  How much do the parameter estimates change?  How much do the plotted curves in (4c) change?
@@ -504,128 +271,84 @@ _For quibblers, pedants, and idle hands itching for work to do_: The $p_k$ value
 用以下代码解决：
 
 ```{r}
-if (!exists("p_data")) {
-  stop("请先执行问题3b的代码以创建p_data")
-}
-
-# 1. 计算方差估计V_k = p_k(1-p_k)/n_k
-p_data$V_k <- with(p_data, p_k * (1 - p_k) / n)
-
-# 2. 处理方差估计中的边界值问题
-min_v <- min(p_data$V_k[p_data$V_k > 0], na.rm = TRUE) / 100
-p_data$V_k <- ifelse(p_data$V_k <= 0 | is.na(p_data$V_k), min_v, p_data$V_k)
-
-# 3. 显示方差估计结果
-cat("\n方差估计结果 (每个k值的精度):\n")
-print(p_data[, c("k", "n", "p_k", "V_k")])
-
-# 4. 加权线性模型估计
-weighted_linear <- lm(p_k ~ k, data = p_data, weights = 1/V_k)
-
-# 5. 加权Logistic模型估计
-weighted_logistic <- nls(
-  p_k ~ exp(a + b * k) / (1 + exp(a + b * k)),
-  data = p_data,
-  start = list(a = -3, b = 0.2),
-  weights = 1/V_k,
-  algorithm = "port",
-  control = nls.control(maxiter = 500, warnOnly = TRUE)
+# 基于问题 3b 的 p_data 计算方差估计
+p_data <- p_data %>%
+mutate(
+V_k = p_k * (1 - p_k) / count, # 方差估计
+weight = ifelse(V_k > 0, 1/V_k, 0) # 权重（方差的倒数）
+) %>%
+filter(!is.na(V_k) & is.finite(V_k)) # 移除无效值
+# 加权线性回归
+weighted_linear_model <- lm(p_k ~ k, data = p_data, weights = weight)
+weighted_linear_coef <- coef(weighted_linear_model)
+# 加权非线性回归
+weighted_logistic_model <- nls(
+p_k ~ exp(a + b*k)/(1 + exp(a + b*k)),
+data = p_data,
+weights = weight,
+start = list(a = -4, b = 0.1)
 )
-
-# 6. 获取加权参数估计
-a_weighted_linear <- coef(weighted_linear)[1]
-b_weighted_linear <- coef(weighted_linear)[2]
-a_weighted_logistic <- coef(weighted_logistic)[1]
-b_weighted_logistic <- coef(weighted_logistic)[2]
-
-# 7. 参数比较分析
-cat("\n线性模型参数比较:\n")
-cat("未加权: a =", round(coef(linear_model)[1], 4), "b =", round(coef(linear_model)[2], 4), "\n")
-cat("加权后: a =", round(a_weighted_linear, 4), "b =", round(b_weighted_linear, 4), "\n")
-
-# 计算线性模型变化量
-delta_a_linear <- a_weighted_linear - coef(linear_model)[1]
-delta_b_linear <- b_weighted_linear - coef(linear_model)[2]
-cat("变化量: Δa =", round(delta_a_linear, 4), "Δb =", round(delta_b_linear, 4), "\n")
-
-# 计算线性模型变化率
-delta_a_rate_linear <- abs(delta_a_linear) / abs(coef(linear_model)[1])
-delta_b_rate_linear <- abs(delta_b_linear) / abs(coef(linear_model)[2])
-cat("变化率: |Δa/a| =", round(delta_a_rate_linear, 3), "|Δb/b| =", round(delta_b_rate_linear, 3), "\n")
-
-cat("\nLogistic模型参数比较:\n")
-cat("未加权: a =", round(coef(logistic_model)[1], 4), "b =", round(coef(logistic_model)[2], 4), "\n")
-cat("加权后: a =", round(a_weighted_logistic, 4), "b =", round(b_weighted_logistic, 4), "\n")
-
-# 计算Logistic模型变化量
-delta_a_logistic <- a_weighted_logistic - coef(logistic_model)[1]
-delta_b_logistic <- b_weighted_logistic - coef(logistic_model)[2]
-cat("变化量: Δa =", round(delta_a_logistic, 4), "Δb =", round(delta_b_logistic, 4), "\n")
-
-# 计算Logistic模型变化率
-delta_a_rate_logistic <- abs(delta_a_logistic) / abs(coef(logistic_model)[1])
-delta_b_rate_logistic <- abs(delta_b_logistic) / abs(coef(logistic_model)[2])
-cat("变化率: |Δa/a| =", round(delta_a_rate_logistic, 3), "|Δb/b| =", round(delta_b_rate_logistic, 3), "\n")
-
-# 8. 创建参数比较表
-param_comparison <- data.frame(
-  Model = c("线性(未加权)", "线性(加权)", "Logistic(未加权)", "Logistic(加权)"),
-  a = c(coef(linear_model)[1], a_weighted_linear, 
-        coef(logistic_model)[1], a_weighted_logistic),
-  b = c(coef(linear_model)[2], b_weighted_linear, 
-        coef(logistic_model)[2], b_weighted_logistic)
-)
-
-print(param_comparison)
-
-# 9. 创建曲线比较数据
-k_range <- data.frame(k = seq(0, 20, by = 0.1))
-k_range$linear_pred <- predict(linear_model, newdata = k_range)
-k_range$logistic_pred <- predict(logistic_model, newdata = k_range)
-k_range$weighted_linear_pred <- predict(weighted_linear, newdata = k_range)
-k_range$weighted_logistic_pred <- predict(weighted_logistic, newdata = k_range)
-
-# 10. 绘制加权与未加权模型比较图
-ggplot() +
-  geom_point(data = p_data, aes(x = k, y = p_k), size = 3, color = "steelblue", alpha = 0.8) +
-  geom_line(data = k_range, aes(x = k, y = linear_pred, color = "Linear(unweighted)"), linewidth = 1, linetype = "dashed") +
-  geom_line(data = k_range, aes(x = k, y = weighted_linear_pred, color = "Linear(weighted)"), linewidth = 1.2) +
-  geom_line(data = k_range, aes(x = k, y = logistic_pred, color = "Logistic(unweighted)"), linewidth = 1, linetype = "dashed") +
-  geom_line(data = k_range, aes(x = k, y = weighted_logistic_pred, color = "Logistic((weighted)"), linewidth = 1.2) +
-  scale_color_manual(
-    name = "model",
-    values = c(
-      "Linear(unweighted)" = "coral",
-      "Linear(weighted)" = "red",
-      "Logistic(unweighted)" = "darkgreen",
-      "Logistic((weighted)" = "forestgreen"
-    )
-  ) +
-  labs(
-    title = "Comparison between weighted and unweighted models",
-    subtitle = "The Impact of Variance Weighting on Model Fitting",
-    x = "Number of contacts adopted before this month (k)",
-    y = "Adoption probability (pk)",
-    caption = "Dashed line: Unweighted model | Solid line: Weighted model\nDots: Observed probability values"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5),
-    legend.position = "bottom",
-    legend.title = element_blank()
-  ) +
-  scale_x_continuous(breaks = seq(0, 20, by = 2), limits = c(0, 20)) +
-  scale_y_continuous(limits = c(0, 0.5), breaks = seq(0, 0.5, by = 0.1),
-                     labels = scales::percent_format(accuracy = 1))
-
-# 11. 结论与建议
-cat("\n结论与建议:\n")
-cat("1. 加权估计显著影响线性模型参数（变化率 > 40%），但对Logistic模型影响较小（< 9%）\n")
-cat("2. Logistic模型结构更稳健，更适合概率数据建模\n")
-cat("3. 在正式分析中应使用加权Logistic模型，因其：\n")
-cat("   - 考虑概率估计的精度差异\n")
-cat("   - 保持S形扩散模式的准确拟合\n")
-cat("   - 提供更可靠的参数估计\n")
-cat("4. 线性模型对加权敏感，不推荐用于概率数据建模\n")
+weighted_logistic_coef <- coef(weighted_logistic_model)
 ```
+
+
+### 参数比较
+```{r}
+# 创建参数比较表格
+param_comparison <- data.frame(
+Model = c("Linear", "Linear (Weighted)", "Logistic", "Logistic (Weighted)"),
+a = c(linear_coef[1], weighted_linear_coef[1],
+logistic_coef[1], weighted_logistic_coef[1]),
+b = c(linear_coef[2], weighted_linear_coef[2],
+logistic_coef[2], weighted_logistic_coef[2])
+)
+# 计算变化百分比
+param_comparison <- param_comparison %>%
+mutate(
+a_change = c(0, 100*(a[2]-a[1])/a[1], 0, 100*(a[4]-a[3])/a[3]),
+b_change = c(0, 100*(b[2]-b[1])/b[1], 0, 100*(b[4]-b[3])/b[3])
+)
+print(param_comparison)
+```
+
+### 曲线比较
+
+```{r}
+# 生成预测数据
+k_range <- 0:20
+orig_linear <- linear_coef[1] + linear_coef[2]*k_range
+weighted_linear <- weighted_linear_coef[1] + weighted_linear_coef[2]*k_range
+orig_logistic <- exp(logistic_coef[1] + logistic_coef[2]*k_range)/
+(1 + exp(logistic_coef[1] + logistic_coef[2]*k_range))
+weighted_logistic <- exp(weighted_logistic_coef[1] + weighted_logistic_coef[2]*k_range)/
+(1 + exp(weighted_logistic_coef[1] + weighted_logistic_coef[2]*k_range))
+# 创建比较数据框
+curve_comparison <- data.frame(
+k = rep(k_range, 4),
+Probability = c(orig_linear, weighted_linear, orig_logistic, weighted_logistic),
+Model = rep(c("Linear", "Linear (Weighted)", "Logistic", "Logistic (Weighted)"),
+each = length(k_range))
+)
+# 绘图
+ggplot(curve_comparison, aes(x = k, y = Probability, color = Model, linetype = Model)) +
+geom_line(linewidth = 1.2) +
+geom_point(data = p_data, aes(x = k, y = p_k, size = count),
+color = "black", inherit.aes = FALSE) +
+scale_color_manual(values = c("Linear" = "blue", "Linear (Weighted)" = "dodgerblue",
+"Logistic" = "red", "Logistic (Weighted)" = "salmon")) +
+scale_linetype_manual(values = c("Linear" = "solid", "Linear (Weighted)" = "dashed",
+"Logistic" = "solid", "Logistic (Weighted)" = "dashed")) +
+labs(title = "Weighted vs Unweighted Model Comparison",
+subtitle = "Points show observed probabilities (size = sample size)",
+x = "Number of Prior-Adoptee Contacts (k)",
+y = "Adoption Probability (p_k)") +
+scale_size_continuous(name = "Sample Size", range = c(2, 6)) +
+theme_minimal() +
+theme(legend.position = "bottom")
+```
+
+
+
+通过比较可以发现，Logistic 模型参数变化较小，更稳健，受加权影响较小；加权估计降低了对样本
+量小、高方差数据点的敏感性，更准确地反映了高精度估计（大样本量点）的影响。因此，加权 Logistic 模
+型平衡了拟合优度和稳定性。

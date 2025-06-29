@@ -152,82 +152,71 @@ earlier. Explain why the dataframe should have 6 columns, and 2125 rows.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{ckm\_nodes }\OtherTok{\textless{}{-}}\NormalTok{ ckm\_nodes }\SpecialCharTok{\%\textgreater{}\%} 
-  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{id =} \FunctionTok{row\_number}\NormalTok{())}
-
-\CommentTok{\# 2. 创建新数据框}
-\NormalTok{doctors }\OtherTok{\textless{}{-}}\NormalTok{ ckm\_nodes}\SpecialCharTok{$}\NormalTok{id}
-\NormalTok{months }\OtherTok{\textless{}{-}} \DecValTok{1}\SpecialCharTok{:}\DecValTok{17}
-
-\CommentTok{\# 创建医生与月份的所有组合}
-\NormalTok{df }\OtherTok{\textless{}{-}} \FunctionTok{expand\_grid}\NormalTok{(}\AttributeTok{doctor =}\NormalTok{ doctors, }\AttributeTok{month =}\NormalTok{ months)}
-
-\CommentTok{\# 添加医生的采用日期}
-\NormalTok{df }\OtherTok{\textless{}{-}}\NormalTok{ df }\SpecialCharTok{\%\textgreater{}\%} 
-  \FunctionTok{left\_join}\NormalTok{(}\FunctionTok{select}\NormalTok{(ckm\_nodes, id, adoption\_date), }\AttributeTok{by =} \FunctionTok{c}\NormalTok{(}\StringTok{"doctor"} \OtherTok{=} \StringTok{"id"}\NormalTok{))}
-
-\CommentTok{\# 创建采用指标列}
-\NormalTok{df }\OtherTok{\textless{}{-}}\NormalTok{ df }\SpecialCharTok{\%\textgreater{}\%}
-  \FunctionTok{mutate}\NormalTok{(}
-    \AttributeTok{adopted =} \FunctionTok{as.integer}\NormalTok{(adoption\_date }\SpecialCharTok{==}\NormalTok{ month),}
-    \AttributeTok{before\_adopted =} \FunctionTok{as.integer}\NormalTok{(adoption\_date }\SpecialCharTok{\textless{}}\NormalTok{ month)}
-\NormalTok{  )}
-
-\CommentTok{\# 预计算每位医生的联系人采用日期}
-\NormalTok{contact\_adopters }\OtherTok{\textless{}{-}} \FunctionTok{apply}\NormalTok{(ckm\_network, }\DecValTok{1}\NormalTok{, }\ControlFlowTok{function}\NormalTok{(row) \{}
-\NormalTok{  contacts }\OtherTok{\textless{}{-}} \FunctionTok{which}\NormalTok{(row }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{)}
-\NormalTok{  ckm\_nodes}\SpecialCharTok{$}\NormalTok{adoption\_date[contacts]}
-\NormalTok{\})}
-
-\CommentTok{\# 计算联系人采用数量的函数}
-\NormalTok{calculate\_contacts }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(doctor\_index, current\_month) \{}
-\NormalTok{  contact\_dates }\OtherTok{\textless{}{-}}\NormalTok{ contact\_adopters[[doctor\_index]]}
-\NormalTok{  contacts\_before }\OtherTok{\textless{}{-}} \FunctionTok{sum}\NormalTok{(contact\_dates }\SpecialCharTok{\textless{}}\NormalTok{ current\_month, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)}
-\NormalTok{  contacts\_at\_or\_before }\OtherTok{\textless{}{-}} \FunctionTok{sum}\NormalTok{(contact\_dates }\SpecialCharTok{\textless{}=}\NormalTok{ current\_month, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)}
-  \FunctionTok{data.frame}\NormalTok{(}
-    \AttributeTok{count\_contacts\_before =}\NormalTok{ contacts\_before,}
-    \AttributeTok{count\_contacts\_at\_or\_before =}\NormalTok{ contacts\_at\_or\_before}
-\NormalTok{  )}
-\NormalTok{\}}
-
-\CommentTok{\# 为每行数据计算联系人指标}
-\NormalTok{contact\_counts }\OtherTok{\textless{}{-}} \FunctionTok{map2\_dfr}\NormalTok{(}
-  \AttributeTok{.x =} \FunctionTok{match}\NormalTok{(df}\SpecialCharTok{$}\NormalTok{doctor, doctors),}
-  \AttributeTok{.y =}\NormalTok{ df}\SpecialCharTok{$}\NormalTok{month,}
-  \AttributeTok{.f =} \SpecialCharTok{\textasciitilde{}} \FunctionTok{calculate\_contacts}\NormalTok{(.x, .y)}
+\CommentTok{\# 添加医生 ID 列（使用行号作为唯一标识）}
+\NormalTok{ckm\_nodes}\SpecialCharTok{$}\NormalTok{doctor\_id }\OtherTok{\textless{}{-}} \DecValTok{1}\SpecialCharTok{:}\FunctionTok{nrow}\NormalTok{(ckm\_nodes)}
+\NormalTok{n\_doctors }\OtherTok{\textless{}{-}} \FunctionTok{nrow}\NormalTok{(ckm\_nodes)}
+\NormalTok{adoption\_dates }\OtherTok{\textless{}{-}}\NormalTok{ ckm\_nodes}\SpecialCharTok{$}\NormalTok{adoption\_date}
+\CommentTok{\# 创建所有医生{-}月份组合 (125 医生 × 17 个月 = 2125 行)}
+\NormalTok{doctor\_months }\OtherTok{\textless{}{-}} \FunctionTok{expand.grid}\NormalTok{(}
+\AttributeTok{doctor\_id =}\NormalTok{ ckm\_nodes}\SpecialCharTok{$}\NormalTok{doctor\_id,}
+\AttributeTok{month =} \DecValTok{1}\SpecialCharTok{:}\DecValTok{17}\NormalTok{,}
+\AttributeTok{stringsAsFactors =} \ConstantTok{FALSE}
 \NormalTok{)}
-
-\CommentTok{\# 合并到主数据框}
-\NormalTok{df }\OtherTok{\textless{}{-}} \FunctionTok{bind\_cols}\NormalTok{(df, contact\_counts) }\SpecialCharTok{\%\textgreater{}\%}
-  \FunctionTok{select}\NormalTok{(}\SpecialCharTok{{-}}\NormalTok{adoption\_date)}
-
-\CommentTok{\# 验证数据框结构}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"行数:"}\NormalTok{, }\FunctionTok{nrow}\NormalTok{(df), }\StringTok{"(应为125医生×17月=2125)}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\CommentTok{\# 添加关键指标列}
+\NormalTok{doctor\_months}\SpecialCharTok{$}\NormalTok{adopted\_this\_month }\OtherTok{\textless{}{-}} \FunctionTok{with}\NormalTok{(doctor\_months, \{}
+\FunctionTok{as.integer}\NormalTok{(adoption\_dates[doctor\_id] }\SpecialCharTok{==}\NormalTok{ month)}
+\NormalTok{\})}
+\NormalTok{doctor\_months}\SpecialCharTok{$}\NormalTok{already\_adopted }\OtherTok{\textless{}{-}} \FunctionTok{with}\NormalTok{(doctor\_months, \{}
+\FunctionTok{as.integer}\NormalTok{(adoption\_dates[doctor\_id] }\SpecialCharTok{\textless{}}\NormalTok{ month)}
+\NormalTok{\})}
+\CommentTok{\# 预计算每个医生的邻居索引}
+\NormalTok{neighbor\_indices }\OtherTok{\textless{}{-}} \FunctionTok{lapply}\NormalTok{(}\DecValTok{1}\SpecialCharTok{:}\NormalTok{n\_doctors, }\ControlFlowTok{function}\NormalTok{(i) \{}
+\FunctionTok{which}\NormalTok{(ckm\_network[i, ] }\SpecialCharTok{==} \DecValTok{1}\NormalTok{)}
+\NormalTok{\})}
+\CommentTok{\# 计算邻居采用指标}
+\NormalTok{doctor\_months}\SpecialCharTok{$}\NormalTok{n\_contacts\_adopted\_before }\OtherTok{\textless{}{-}} \FunctionTok{mapply}\NormalTok{(}\ControlFlowTok{function}\NormalTok{(doc\_id, t) \{}
+\NormalTok{neighbors }\OtherTok{\textless{}{-}}\NormalTok{ neighbor\_indices[[doc\_id]]}
+\ControlFlowTok{if}\NormalTok{(}\FunctionTok{length}\NormalTok{(neighbors) }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{) \{}
+\FunctionTok{sum}\NormalTok{(adoption\_dates[neighbors] }\SpecialCharTok{\textless{}}\NormalTok{ t, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)}
+\NormalTok{\} }\ControlFlowTok{else}\NormalTok{ \{}
+\DecValTok{0}
+\NormalTok{\}}
+\NormalTok{\}, doctor\_months}\SpecialCharTok{$}\NormalTok{doctor\_id, doctor\_months}\SpecialCharTok{$}\NormalTok{month)}
+\NormalTok{doctor\_months}\SpecialCharTok{$}\NormalTok{n\_contacts\_adopted\_by\_now }\OtherTok{\textless{}{-}} \FunctionTok{mapply}\NormalTok{(}\ControlFlowTok{function}\NormalTok{(doc\_id, t) \{}
+\NormalTok{neighbors }\OtherTok{\textless{}{-}}\NormalTok{ neighbor\_indices[[doc\_id]]}
+\ControlFlowTok{if}\NormalTok{(}\FunctionTok{length}\NormalTok{(neighbors) }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{) \{}
+\FunctionTok{sum}\NormalTok{(adoption\_dates[neighbors] }\SpecialCharTok{\textless{}=}\NormalTok{ t, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{)}
+\NormalTok{\} }\ControlFlowTok{else}\NormalTok{ \{}
+\DecValTok{0}
+\NormalTok{\}}
+\NormalTok{\}, doctor\_months}\SpecialCharTok{$}\NormalTok{doctor\_id, doctor\_months}\SpecialCharTok{$}\NormalTok{month)}
+\CommentTok{\# 验证结果}
+\FunctionTok{cat}\NormalTok{(}\StringTok{" 行数:"}\NormalTok{, }\FunctionTok{nrow}\NormalTok{(doctor\_months), }\StringTok{" 预期: 125 医生 × 17 个月 = 2125}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-## 行数: 2125 (应为125医生×17月=2125)
+##  行数: 2125  预期: 125 医生 × 17 个月 = 2125
 \end{verbatim}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"列数:"}\NormalTok{, }\FunctionTok{ncol}\NormalTok{(df), }\StringTok{"(应为6)}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\FunctionTok{cat}\NormalTok{(}\StringTok{" 列数:"}\NormalTok{, }\FunctionTok{ncol}\NormalTok{(doctor\_months), }\StringTok{" 预期: 6 列"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-## 列数: 6 (应为6)
+##  列数: 6  预期: 6 列
 \end{verbatim}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"列名:"}\NormalTok{, }\FunctionTok{paste}\NormalTok{(}\FunctionTok{colnames}\NormalTok{(df), }\AttributeTok{collapse =} \StringTok{", "}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\FunctionTok{cat}\NormalTok{(}\StringTok{" 列名:"}\NormalTok{, }\FunctionTok{paste}\NormalTok{(}\FunctionTok{colnames}\NormalTok{(df), }\AttributeTok{collapse =} \StringTok{", "}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-## 列名: doctor, month, adopted, before_adopted, count_contacts_before, count_contacts_at_or_before
+##  列名:
 \end{verbatim}
 
 \subsubsection{3.}\label{section-2}
@@ -278,30 +267,23 @@ contacts \(k\).
 \begin{Shaded}
 \begin{Highlighting}[]
 \CommentTok{\# 计算 p\_k}
-\NormalTok{p\_data }\OtherTok{\textless{}{-}}\NormalTok{ df }\SpecialCharTok{\%\textgreater{}\%}
-  \FunctionTok{filter}\NormalTok{(before\_adopted }\SpecialCharTok{==} \DecValTok{0}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}  \CommentTok{\# 只考虑本月前未采用的医生}
-  \FunctionTok{group\_by}\NormalTok{(count\_contacts\_before) }\SpecialCharTok{\%\textgreater{}\%}  \CommentTok{\# 按 k 分组}
-  \FunctionTok{summarise}\NormalTok{(}
-    \AttributeTok{n =} \FunctionTok{n}\NormalTok{(),  }\CommentTok{\# 该 k 值的总医生数}
-    \AttributeTok{adopted\_this\_month =} \FunctionTok{sum}\NormalTok{(adopted),  }\CommentTok{\# 本月采用的医生数}
-    \AttributeTok{p\_k =}\NormalTok{ adopted\_this\_month }\SpecialCharTok{/}\NormalTok{ n  }\CommentTok{\# 概率估计}
-\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
-  \FunctionTok{rename}\NormalTok{(}\AttributeTok{k =}\NormalTok{ count\_contacts\_before)  }\CommentTok{\# 重命名列}
-
-\CommentTok{\# 绘制 p\_k}
+\NormalTok{p\_data }\OtherTok{\textless{}{-}}\NormalTok{ doctor\_months }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{filter}\NormalTok{(already\_adopted }\SpecialCharTok{==} \DecValTok{0}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%} \CommentTok{\# 只考虑尚未采用的医生}
+\FunctionTok{group\_by}\NormalTok{(n\_contacts\_adopted\_before) }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{summarise}\NormalTok{(}
+\AttributeTok{p\_k =} \FunctionTok{mean}\NormalTok{(adopted\_this\_month),}
+\AttributeTok{count =} \FunctionTok{n}\NormalTok{()}
+\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{rename}\NormalTok{(}\AttributeTok{k =}\NormalTok{ n\_contacts\_adopted\_before)}
+\CommentTok{\# 绘图}
 \FunctionTok{ggplot}\NormalTok{(p\_data, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ p\_k)) }\SpecialCharTok{+}
-  \FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{size =} \DecValTok{3}\NormalTok{, }\AttributeTok{color =} \StringTok{"blue"}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{geom\_smooth}\NormalTok{(}\AttributeTok{method =} \StringTok{"loess"}\NormalTok{, }\AttributeTok{se =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{color =} \StringTok{"darkblue"}\NormalTok{, }\AttributeTok{linetype =} \StringTok{"dashed"}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{labs}\NormalTok{(}
-    \AttributeTok{title =} \StringTok{"The relationship between adoption probability and the number of previously adopted contacts before the current month"}\NormalTok{,}
-    \AttributeTok{subtitle =} \FunctionTok{expression}\NormalTok{(}\FunctionTok{paste}\NormalTok{(}\StringTok{"estimated "}\NormalTok{, p[k], }\StringTok{" probability"}\NormalTok{)),}
-    \AttributeTok{x =} \StringTok{"Number of contacts adopted prior to this month (k)"}\NormalTok{,}
-    \AttributeTok{y =} \FunctionTok{expression}\NormalTok{(p[k])}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{theme\_minimal}\NormalTok{(}\AttributeTok{base\_size =} \DecValTok{12}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{theme}\NormalTok{(}\AttributeTok{plot.title =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{)) }\SpecialCharTok{+}
-  \FunctionTok{scale\_x\_continuous}\NormalTok{(}\AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \DecValTok{2}\NormalTok{)) }\SpecialCharTok{+}
-  \FunctionTok{ylim}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{)  }\CommentTok{\# 根据实际数据范围调整}
+\FunctionTok{geom\_point}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{size =}\NormalTok{ count), }\AttributeTok{color =} \StringTok{"blue"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{geom\_smooth}\NormalTok{(}\AttributeTok{method =} \StringTok{"loess"}\NormalTok{, }\AttributeTok{se =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{color =} \StringTok{"darkblue"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{title =} \StringTok{"Adoption Probability vs. Number of Adopted Neighbors Before Current Month (p\_k)"}\NormalTok{,}
+\AttributeTok{x =} \StringTok{"Number of Adopted Neighbors Before Current Month (k)"}\NormalTok{,}
+\AttributeTok{y =} \StringTok{"Adoption Probability (p\_k)"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{scale\_size\_continuous}\NormalTok{(}\AttributeTok{name =} \StringTok{"Sample Size"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{theme\_minimal}\NormalTok{()}
 \end{Highlighting}
 \end{Shaded}
 
@@ -321,30 +303,25 @@ prior-or-contemporary-adoptee contacts \(k\).
 \begin{Shaded}
 \begin{Highlighting}[]
 \CommentTok{\# 计算 q\_k}
-\NormalTok{q\_data }\OtherTok{\textless{}{-}}\NormalTok{ df }\SpecialCharTok{\%\textgreater{}\%}
-  \FunctionTok{filter}\NormalTok{(before\_adopted }\SpecialCharTok{==} \DecValTok{0}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}  \CommentTok{\# 只考虑本月前未采用的医生}
-  \FunctionTok{group\_by}\NormalTok{(count\_contacts\_at\_or\_before) }\SpecialCharTok{\%\textgreater{}\%}  \CommentTok{\# 按 k 分组}
-  \FunctionTok{summarise}\NormalTok{(}
-    \AttributeTok{n =} \FunctionTok{n}\NormalTok{(),  }\CommentTok{\# 该 k 值的总医生数}
-    \AttributeTok{adopted\_this\_month =} \FunctionTok{sum}\NormalTok{(adopted),  }\CommentTok{\# 本月采用的医生数}
-    \AttributeTok{q\_k =}\NormalTok{ adopted\_this\_month }\SpecialCharTok{/}\NormalTok{ n  }\CommentTok{\# 概率估计}
-\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
-  \FunctionTok{rename}\NormalTok{(}\AttributeTok{k =}\NormalTok{ count\_contacts\_at\_or\_before)  }\CommentTok{\# 重命名列}
-
-\CommentTok{\# 绘制 q\_k}
+\NormalTok{q\_data }\OtherTok{\textless{}{-}}\NormalTok{ doctor\_months }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{filter}\NormalTok{(already\_adopted }\SpecialCharTok{==} \DecValTok{0}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%} \CommentTok{\# 只考虑尚未采用的医生}
+\FunctionTok{group\_by}\NormalTok{(n\_contacts\_adopted\_by\_now) }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{summarise}\NormalTok{(}
+\AttributeTok{q\_k =} \FunctionTok{mean}\NormalTok{(adopted\_this\_month),}
+\AttributeTok{count =} \FunctionTok{n}\NormalTok{()}
+\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{k =}\NormalTok{ n\_contacts\_adopted\_by\_now)}
+\CommentTok{\# Plot}
 \FunctionTok{ggplot}\NormalTok{(q\_data, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ q\_k)) }\SpecialCharTok{+}
-  \FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{size =} \DecValTok{3}\NormalTok{, }\AttributeTok{color =} \StringTok{"red"}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{geom\_smooth}\NormalTok{(}\AttributeTok{method =} \StringTok{"loess"}\NormalTok{, }\AttributeTok{se =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{color =} \StringTok{"darkred"}\NormalTok{, }\AttributeTok{linetype =} \StringTok{"dashed"}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{labs}\NormalTok{(}
-    \AttributeTok{title =} \StringTok{"The relationship between adoption probability and the number of contacts already adopted this month or previously"}\NormalTok{,}
-    \AttributeTok{subtitle =} \FunctionTok{expression}\NormalTok{(}\FunctionTok{paste}\NormalTok{(}\StringTok{"estimated "}\NormalTok{, q[k], }\StringTok{" probability"}\NormalTok{)),}
-    \AttributeTok{x =} \StringTok{"Number of contacts already adopted this month or earlier (k)"}\NormalTok{,}
-    \AttributeTok{y =} \FunctionTok{expression}\NormalTok{(q[k])}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{theme\_minimal}\NormalTok{(}\AttributeTok{base\_size =} \DecValTok{12}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{theme}\NormalTok{(}\AttributeTok{plot.title =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{)) }\SpecialCharTok{+}
-  \FunctionTok{scale\_x\_continuous}\NormalTok{(}\AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \DecValTok{2}\NormalTok{)) }\SpecialCharTok{+}
-  \FunctionTok{ylim}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{)  }\CommentTok{\# 根据实际数据范围调整}
+\FunctionTok{geom\_point}\NormalTok{(}\FunctionTok{aes}\NormalTok{(}\AttributeTok{size =}\NormalTok{ count), }\AttributeTok{color =} \StringTok{"red"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{geom\_smooth}\NormalTok{(}\AttributeTok{method =} \StringTok{"loess"}\NormalTok{, }\AttributeTok{se =} \ConstantTok{FALSE}\NormalTok{, }\AttributeTok{color =} \StringTok{"darkred"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{labs}\NormalTok{(}
+\AttributeTok{title =} \StringTok{"Adoption Probability vs. Number of Adopted Neighbors Up to Current Month (q\_k)"}\NormalTok{,}
+\AttributeTok{x =} \StringTok{"Number of Adopted Neighbors Up to Current Month (k)"}\NormalTok{,}
+\AttributeTok{y =} \StringTok{"Adoption Probability (q\_k)"}
+\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{scale\_size\_continuous}\NormalTok{(}\AttributeTok{name =} \StringTok{"Sample Size"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{theme\_minimal}\NormalTok{()}
 \end{Highlighting}
 \end{Shaded}
 
@@ -372,102 +349,28 @@ in (3b). Report the parameter estimates.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# 确保 p\_data 存在}
-\ControlFlowTok{if}\NormalTok{ (}\SpecialCharTok{!}\FunctionTok{exists}\NormalTok{(}\StringTok{"p\_data"}\NormalTok{)) \{}
-  \FunctionTok{stop}\NormalTok{(}\StringTok{"p\_data 未定义，请先执行问题3b的代码"}\NormalTok{)}
-\NormalTok{\}}
-
-\CommentTok{\# 拟合线性模型}
-\NormalTok{linear\_model }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(p\_k }\SpecialCharTok{\textasciitilde{}}\NormalTok{ k, }\AttributeTok{data =}\NormalTok{ p\_data)}
-
+\CommentTok{\# 使用加权最小二乘法估计线性模型（权重为样本量）}
+\NormalTok{linear\_model }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(p\_k }\SpecialCharTok{\textasciitilde{}}\NormalTok{ k, }\AttributeTok{data =}\NormalTok{ p\_data, }\AttributeTok{weights =}\NormalTok{ count)}
 \CommentTok{\# 获取参数估计}
-\NormalTok{a\_linear }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{1}\NormalTok{]}
-\NormalTok{b\_linear }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{2}\NormalTok{]}
-
-\CommentTok{\# 输出参数估计}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"Linear model parameter estimates:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\NormalTok{linear\_coef }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(linear\_model)}
+\FunctionTok{cat}\NormalTok{(}\StringTok{" 线性模型估计结果:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-## Linear model parameter estimates:
+##  线性模型估计结果:
 \end{verbatim}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\FunctionTok{sprintf}\NormalTok{(}\StringTok{"Intercept a = \%.4f}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{, a\_linear))}
+\FunctionTok{cat}\NormalTok{(}\FunctionTok{sprintf}\NormalTok{(}\StringTok{" 截距 a = \%.4f}\SpecialCharTok{\textbackslash{}n}\StringTok{斜率 b = \%.4f"}\NormalTok{, linear\_coef[}\DecValTok{1}\NormalTok{], linear\_coef[}\DecValTok{2}\NormalTok{]))}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-## Intercept a = 0.0328
+##  截距 a = 0.0947
+## 斜率 b = 0.0126
 \end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\FunctionTok{sprintf}\NormalTok{(}\StringTok{"Slope b = \%.4f}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{, b\_linear))}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## Slope b = 0.0346
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 创建可视化}
-\FunctionTok{ggplot}\NormalTok{(p\_data, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ p\_k)) }\SpecialCharTok{+}
-  \CommentTok{\# 原始数据点}
-  \FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{size =} \DecValTok{3}\NormalTok{, }\AttributeTok{color =} \StringTok{"steelblue"}\NormalTok{, }\AttributeTok{alpha =} \FloatTok{0.8}\NormalTok{) }\SpecialCharTok{+}
-  \CommentTok{\# 线性拟合线}
-  \FunctionTok{geom\_smooth}\NormalTok{(}
-    \AttributeTok{method =} \StringTok{"lm"}\NormalTok{, }
-    \AttributeTok{formula =}\NormalTok{ y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ x,}
-    \AttributeTok{se =} \ConstantTok{FALSE}\NormalTok{, }
-    \AttributeTok{color =} \StringTok{"coral"}\NormalTok{,}
-    \AttributeTok{linewidth =} \FloatTok{1.5}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 参数标注}
-  \FunctionTok{annotate}\NormalTok{(}
-    \StringTok{"text"}\NormalTok{,}
-    \AttributeTok{x =} \DecValTok{15}\NormalTok{,}
-    \AttributeTok{y =} \FloatTok{0.05}\NormalTok{,}
-    \AttributeTok{label =} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"p[k] == \%.4f + \%.4f * k"}\NormalTok{, }
-\NormalTok{                   a\_linear, }
-\NormalTok{                   b\_linear),}
-    \AttributeTok{parse =} \ConstantTok{TRUE}\NormalTok{,}
-    \AttributeTok{size =} \DecValTok{5}\NormalTok{,}
-    \AttributeTok{color =} \StringTok{"coral"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 图表标签}
-  \FunctionTok{labs}\NormalTok{(}
-    \AttributeTok{title =} \StringTok{"Linear Model of Adoption Probability"}\NormalTok{,}
-    \AttributeTok{subtitle =} \StringTok{"pk = a + b·k (constant marginal effect per contact)"}\NormalTok{,}
-    \AttributeTok{x =} \StringTok{"Number of Prior{-}Adopter Contacts (k)"}\NormalTok{,}
-    \AttributeTok{y =} \StringTok{"Adoption Probability (pk)"}\NormalTok{,}
-    \AttributeTok{caption =} \StringTok{"Points: Observed probabilities | Line: Linear model fit"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 主题美化}
-  \FunctionTok{theme\_minimal}\NormalTok{(}\AttributeTok{base\_size =} \DecValTok{14}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{theme}\NormalTok{(}
-    \AttributeTok{plot.title =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{, }\AttributeTok{face =} \StringTok{"bold"}\NormalTok{),}
-    \AttributeTok{plot.subtitle =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{),}
-    \AttributeTok{panel.grid.minor =} \FunctionTok{element\_blank}\NormalTok{()}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 坐标轴设置}
-  \FunctionTok{scale\_x\_continuous}\NormalTok{(}
-    \AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \DecValTok{2}\NormalTok{),}
-    \AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{)}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{scale\_y\_continuous}\NormalTok{(}
-    \AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{),}
-    \AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.1}\NormalTok{),}
-    \AttributeTok{labels =}\NormalTok{ scales}\SpecialCharTok{::}\FunctionTok{percent\_format}\NormalTok{(}\AttributeTok{accuracy =} \DecValTok{1}\NormalTok{)}
-\NormalTok{  )}
-\end{Highlighting}
-\end{Shaded}
-
-\includegraphics{Homework-04_files/figure-latex/unnamed-chunk-5-1.pdf}
 
 \paragraph{b.}\label{b.-1}
 
@@ -481,115 +384,34 @@ squares, using the values you constructed in (3b).
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# 确保 p\_data 存在}
-\ControlFlowTok{if}\NormalTok{ (}\SpecialCharTok{!}\FunctionTok{exists}\NormalTok{(}\StringTok{"p\_data"}\NormalTok{)) \{}
-  \FunctionTok{stop}\NormalTok{(}\StringTok{"p\_data 未定义，请先执行问题3b的代码"}\NormalTok{)}
-\NormalTok{\}}
-
-\CommentTok{\# 拟合 Logistic 模型}
+\CommentTok{\# 使用加权非线性最小二乘法估计 logistic 模型}
 \NormalTok{logistic\_model }\OtherTok{\textless{}{-}} \FunctionTok{nls}\NormalTok{(}
-\NormalTok{  p\_k }\SpecialCharTok{\textasciitilde{}} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b }\SpecialCharTok{*}\NormalTok{ k) }\SpecialCharTok{/}\NormalTok{ (}\DecValTok{1} \SpecialCharTok{+} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b }\SpecialCharTok{*}\NormalTok{ k)),}
-  \AttributeTok{data =}\NormalTok{ p\_data,}
-  \AttributeTok{start =} \FunctionTok{list}\NormalTok{(}\AttributeTok{a =} \SpecialCharTok{{-}}\DecValTok{3}\NormalTok{, }\AttributeTok{b =} \FloatTok{0.2}\NormalTok{),}
-  \AttributeTok{algorithm =} \StringTok{"port"}\NormalTok{,}
-  \AttributeTok{control =} \FunctionTok{nls.control}\NormalTok{(}\AttributeTok{maxiter =} \DecValTok{500}\NormalTok{, }\AttributeTok{warnOnly =} \ConstantTok{TRUE}\NormalTok{)}
+\NormalTok{p\_k }\SpecialCharTok{\textasciitilde{}} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b}\SpecialCharTok{*}\NormalTok{k)}\SpecialCharTok{/}\NormalTok{(}\DecValTok{1} \SpecialCharTok{+} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b}\SpecialCharTok{*}\NormalTok{k)),}
+\AttributeTok{data =}\NormalTok{ p\_data,}
+\AttributeTok{weights =}\NormalTok{ count,}
+\AttributeTok{start =} \FunctionTok{list}\NormalTok{(}\AttributeTok{a =} \SpecialCharTok{{-}}\DecValTok{4}\NormalTok{, }\AttributeTok{b =} \FloatTok{0.1}\NormalTok{) }\CommentTok{\# 初始值}
 \NormalTok{)}
-
 \CommentTok{\# 获取参数估计}
-\NormalTok{a\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{1}\NormalTok{]}
-\NormalTok{b\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{2}\NormalTok{]}
-
-\CommentTok{\# 输出参数估计}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{Logistic model parameter estimates:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\NormalTok{logistic\_coef }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(logistic\_model)}
+\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{Logistic 模型估计结果:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
 ## 
-## Logistic model parameter estimates:
+## Logistic 模型估计结果:
 \end{verbatim}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\FunctionTok{sprintf}\NormalTok{(}\StringTok{"a = \%.4f}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{, a\_logistic))}
+\FunctionTok{cat}\NormalTok{(}\FunctionTok{sprintf}\NormalTok{(}\StringTok{" 参数 a = \%.4f}\SpecialCharTok{\textbackslash{}n}\StringTok{参数 b = \%.4f"}\NormalTok{, logistic\_coef[}\DecValTok{1}\NormalTok{], logistic\_coef[}\DecValTok{2}\NormalTok{]))}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-## a = -3.6873
+##  参数 a = -2.2548
+## 参数 b = 0.1229
 \end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\FunctionTok{sprintf}\NormalTok{(}\StringTok{"b = \%.4f}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{, b\_logistic))}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## b = 0.3834
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 创建预测数据}
-\NormalTok{k\_range }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}\AttributeTok{k =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.1}\NormalTok{))}
-\NormalTok{k\_range}\SpecialCharTok{$}\NormalTok{logistic\_pred }\OtherTok{\textless{}{-}} \FunctionTok{predict}\NormalTok{(logistic\_model, }\AttributeTok{newdata =}\NormalTok{ k\_range)}
-
-\CommentTok{\# 创建可视化}
-\FunctionTok{ggplot}\NormalTok{(p\_data, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ p\_k)) }\SpecialCharTok{+}
-  \CommentTok{\# 原始数据点}
-  \FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{size =} \DecValTok{3}\NormalTok{, }\AttributeTok{color =} \StringTok{"steelblue"}\NormalTok{, }\AttributeTok{alpha =} \FloatTok{0.8}\NormalTok{) }\SpecialCharTok{+}
-  \CommentTok{\# Logistic 模型曲线}
-  \FunctionTok{geom\_line}\NormalTok{(}\AttributeTok{data =}\NormalTok{ k\_range, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{y =}\NormalTok{ logistic\_pred), }
-            \AttributeTok{color =} \StringTok{"forestgreen"}\NormalTok{, }\AttributeTok{linewidth =} \FloatTok{1.5}\NormalTok{) }\SpecialCharTok{+}
-  \CommentTok{\# 模型形式标注}
-  \FunctionTok{annotate}\NormalTok{(}
-    \StringTok{"text"}\NormalTok{,}
-    \AttributeTok{x =} \DecValTok{15}\NormalTok{,}
-    \AttributeTok{y =} \FloatTok{0.05}\NormalTok{,}
-    \AttributeTok{label =} \StringTok{"p[k] == logistic(a + b \%.\% k)"}\NormalTok{,}
-    \AttributeTok{parse =} \ConstantTok{TRUE}\NormalTok{,}
-    \AttributeTok{size =} \DecValTok{5}\NormalTok{,}
-    \AttributeTok{color =} \StringTok{"forestgreen"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 参数值标注}
-  \FunctionTok{annotate}\NormalTok{(}
-    \StringTok{"text"}\NormalTok{,}
-    \AttributeTok{x =} \DecValTok{15}\NormalTok{,}
-    \AttributeTok{y =} \FloatTok{0.03}\NormalTok{,}
-    \AttributeTok{label =} \FunctionTok{paste0}\NormalTok{(}\StringTok{"a = "}\NormalTok{, }\FunctionTok{round}\NormalTok{(a\_logistic, }\DecValTok{4}\NormalTok{), }\StringTok{", b = "}\NormalTok{, }\FunctionTok{round}\NormalTok{(b\_logistic, }\DecValTok{4}\NormalTok{)),}
-    \AttributeTok{size =} \DecValTok{5}\NormalTok{,}
-    \AttributeTok{color =} \StringTok{"forestgreen"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 图表标签}
-  \FunctionTok{labs}\NormalTok{(}
-    \AttributeTok{title =} \StringTok{"Logistic Model of Adoption Probability"}\NormalTok{,}
-    \AttributeTok{subtitle =} \StringTok{"S{-}shaped diffusion curve with diminishing marginal returns"}\NormalTok{,}
-    \AttributeTok{x =} \StringTok{"Number of Prior{-}Adopter Contacts (k)"}\NormalTok{,}
-    \AttributeTok{y =} \StringTok{"Adoption Probability (pk)"}\NormalTok{,}
-    \AttributeTok{caption =} \StringTok{"Points: Observed probabilities | Curve: Logistic model fit"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 主题美化}
-  \FunctionTok{theme\_minimal}\NormalTok{(}\AttributeTok{base\_size =} \DecValTok{14}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{theme}\NormalTok{(}
-    \AttributeTok{plot.title =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{, }\AttributeTok{face =} \StringTok{"bold"}\NormalTok{),}
-    \AttributeTok{plot.subtitle =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{),}
-    \AttributeTok{panel.grid.minor =} \FunctionTok{element\_blank}\NormalTok{()}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 坐标轴设置}
-  \FunctionTok{scale\_x\_continuous}\NormalTok{(}
-    \AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \DecValTok{2}\NormalTok{),}
-    \AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{)}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{scale\_y\_continuous}\NormalTok{(}
-    \AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{),}
-    \AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.1}\NormalTok{),}
-    \AttributeTok{labels =}\NormalTok{ scales}\SpecialCharTok{::}\FunctionTok{percent\_format}\NormalTok{(}\AttributeTok{accuracy =} \DecValTok{1}\NormalTok{)}
-\NormalTok{  )}
-\end{Highlighting}
-\end{Shaded}
-
-\includegraphics{Homework-04_files/figure-latex/unnamed-chunk-6-1.pdf}
 
 \paragraph{c.~}\label{c.}
 
@@ -602,178 +424,39 @@ why?
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# 确保所有必要对象存在}
-\ControlFlowTok{if}\NormalTok{ (}\SpecialCharTok{!}\FunctionTok{exists}\NormalTok{(}\StringTok{"p\_data"}\NormalTok{) }\SpecialCharTok{||} \SpecialCharTok{!}\FunctionTok{exists}\NormalTok{(}\StringTok{"linear\_model"}\NormalTok{) }\SpecialCharTok{||} \SpecialCharTok{!}\FunctionTok{exists}\NormalTok{(}\StringTok{"logistic\_model"}\NormalTok{)) \{}
-  \FunctionTok{stop}\NormalTok{(}\StringTok{"请先执行4a和4b的代码"}\NormalTok{)}
-\NormalTok{\}}
-
-\CommentTok{\# 创建预测数据范围}
-\NormalTok{k\_range }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}\AttributeTok{k =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.1}\NormalTok{))}
-
-\CommentTok{\# 计算线性模型预测}
-\NormalTok{k\_range}\SpecialCharTok{$}\NormalTok{linear\_pred }\OtherTok{\textless{}{-}} \FunctionTok{predict}\NormalTok{(linear\_model, }\AttributeTok{newdata =}\NormalTok{ k\_range)}
-
-\CommentTok{\# 计算Logistic模型预测}
-\NormalTok{k\_range}\SpecialCharTok{$}\NormalTok{logistic\_pred }\OtherTok{\textless{}{-}} \FunctionTok{predict}\NormalTok{(logistic\_model, }\AttributeTok{newdata =}\NormalTok{ k\_range)}
-
-\CommentTok{\# 创建比较图}
-\FunctionTok{ggplot}\NormalTok{() }\SpecialCharTok{+}
-  \CommentTok{\# 原始数据点}
-  \FunctionTok{geom\_point}\NormalTok{(}
-    \AttributeTok{data =}\NormalTok{ p\_data, }
-    \FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ p\_k, }\AttributeTok{color =} \StringTok{"Observed Data"}\NormalTok{),}
-    \AttributeTok{size =} \DecValTok{3}\NormalTok{, }
-    \AttributeTok{alpha =} \FloatTok{0.8}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 线性模型曲线}
-  \FunctionTok{geom\_line}\NormalTok{(}
-    \AttributeTok{data =}\NormalTok{ k\_range,}
-    \FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ linear\_pred, }\AttributeTok{color =} \StringTok{"Linear Model"}\NormalTok{),}
-    \AttributeTok{linewidth =} \FloatTok{1.2}\NormalTok{,}
-    \AttributeTok{linetype =} \StringTok{"solid"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# Logistic模型曲线}
-  \FunctionTok{geom\_line}\NormalTok{(}
-    \AttributeTok{data =}\NormalTok{ k\_range,}
-    \FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ logistic\_pred, }\AttributeTok{color =} \StringTok{"Logistic Model"}\NormalTok{),}
-    \AttributeTok{linewidth =} \FloatTok{1.2}\NormalTok{,}
-    \AttributeTok{linetype =} \StringTok{"solid"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 模型标注}
-  \FunctionTok{annotate}\NormalTok{(}
-    \StringTok{"text"}\NormalTok{,}
-    \AttributeTok{x =} \DecValTok{5}\NormalTok{,}
-    \AttributeTok{y =} \FloatTok{0.45}\NormalTok{,}
-    \AttributeTok{label =} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"Linear: p[k] == \%.4f + \%.4f * k"}\NormalTok{, }
-                   \FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{1}\NormalTok{], }
-                   \FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{2}\NormalTok{]),}
-    \AttributeTok{parse =} \ConstantTok{TRUE}\NormalTok{,}
-    \AttributeTok{size =} \FloatTok{4.5}\NormalTok{,}
-    \AttributeTok{color =} \StringTok{"coral"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{annotate}\NormalTok{(}
-    \StringTok{"text"}\NormalTok{,}
-    \AttributeTok{x =} \DecValTok{15}\NormalTok{,}
-    \AttributeTok{y =} \FloatTok{0.1}\NormalTok{,}
-    \AttributeTok{label =} \FunctionTok{sprintf}\NormalTok{(}\StringTok{"Logistic: a == \%.4f \textasciitilde{} b == \%.4f"}\NormalTok{, }
-                   \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{1}\NormalTok{], }
-                   \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{2}\NormalTok{]),}
-    \AttributeTok{parse =} \ConstantTok{TRUE}\NormalTok{,}
-    \AttributeTok{size =} \FloatTok{4.5}\NormalTok{,}
-    \AttributeTok{color =} \StringTok{"forestgreen"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 颜色和图例设置}
-  \FunctionTok{scale\_color\_manual}\NormalTok{(}
-    \AttributeTok{name =} \StringTok{""}\NormalTok{,}
-    \AttributeTok{values =} \FunctionTok{c}\NormalTok{(}
-      \StringTok{"Observed Data"} \OtherTok{=} \StringTok{"steelblue"}\NormalTok{,}
-      \StringTok{"Linear Model"} \OtherTok{=} \StringTok{"coral"}\NormalTok{,}
-      \StringTok{"Logistic Model"} \OtherTok{=} \StringTok{"forestgreen"}
-\NormalTok{    )}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 图表标签}
-  \FunctionTok{labs}\NormalTok{(}
-    \AttributeTok{title =} \StringTok{"Comparison of Adoption Probability Models"}\NormalTok{,}
-    \AttributeTok{subtitle =} \StringTok{"Observed probabilities vs. model predictions"}\NormalTok{,}
-    \AttributeTok{x =} \StringTok{"Number of Prior{-}Adopter Contacts (k)"}\NormalTok{,}
-    \AttributeTok{y =} \StringTok{"Adoption Probability (pₖ)"}\NormalTok{,}
-    \AttributeTok{caption =} \StringTok{"Data: Observed probabilities from CKM network study"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 主题美化}
-  \FunctionTok{theme\_minimal}\NormalTok{(}\AttributeTok{base\_size =} \DecValTok{14}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{theme}\NormalTok{(}
-    \AttributeTok{plot.title =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{, }\AttributeTok{face =} \StringTok{"bold"}\NormalTok{),}
-    \AttributeTok{plot.subtitle =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{),}
-    \AttributeTok{legend.position =} \StringTok{"bottom"}\NormalTok{,}
-    \AttributeTok{legend.title =} \FunctionTok{element\_blank}\NormalTok{(),}
-    \AttributeTok{panel.grid.minor =} \FunctionTok{element\_blank}\NormalTok{()}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 坐标轴设置}
-  \FunctionTok{scale\_x\_continuous}\NormalTok{(}
-    \AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \DecValTok{2}\NormalTok{),}
-    \AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{)}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{scale\_y\_continuous}\NormalTok{(}
-    \AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{),}
-    \AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.1}\NormalTok{),}
-    \AttributeTok{labels =}\NormalTok{ scales}\SpecialCharTok{::}\FunctionTok{percent\_format}\NormalTok{(}\AttributeTok{accuracy =} \DecValTok{1}\NormalTok{)}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \CommentTok{\# 添加模型比较说明}
-  \FunctionTok{annotate}\NormalTok{(}
-    \StringTok{"text"}\NormalTok{,}
-    \AttributeTok{x =} \DecValTok{10}\NormalTok{,}
-    \AttributeTok{y =} \FloatTok{0.02}\NormalTok{,}
-    \AttributeTok{label =} \StringTok{"Logistic model better captures S{-}shaped diffusion pattern"}\NormalTok{,}
-    \AttributeTok{size =} \DecValTok{5}\NormalTok{,}
-    \AttributeTok{color =} \StringTok{"black"}\NormalTok{,}
-    \AttributeTok{fontface =} \StringTok{"bold"}
-\NormalTok{  )}
+\CommentTok{\# 生成预测数据}
+\NormalTok{k\_range }\OtherTok{\textless{}{-}} \DecValTok{0}\SpecialCharTok{:}\DecValTok{20}
+\NormalTok{linear\_pred }\OtherTok{\textless{}{-}}\NormalTok{ linear\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ linear\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range}
+\NormalTok{logistic\_pred }\OtherTok{\textless{}{-}} \FunctionTok{exp}\NormalTok{(logistic\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ logistic\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range)}\SpecialCharTok{/}
+\NormalTok{(}\DecValTok{1} \SpecialCharTok{+} \FunctionTok{exp}\NormalTok{(logistic\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ logistic\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range))}
+\CommentTok{\# 创建比较数据框}
+\NormalTok{comparison\_df }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+\AttributeTok{k =} \FunctionTok{rep}\NormalTok{(k\_range, }\DecValTok{3}\NormalTok{),}
+\AttributeTok{Probability =} \FunctionTok{c}\NormalTok{(p\_data}\SpecialCharTok{$}\NormalTok{p\_k[}\FunctionTok{match}\NormalTok{(k\_range, p\_data}\SpecialCharTok{$}\NormalTok{k)],}
+\NormalTok{linear\_pred,}
+\NormalTok{logistic\_pred),}
+\AttributeTok{Type =} \FunctionTok{rep}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\StringTok{"Observed"}\NormalTok{, }\StringTok{"Linear"}\NormalTok{, }\StringTok{"Logistic"}\NormalTok{), }\AttributeTok{each =} \FunctionTok{length}\NormalTok{(k\_range))}
+\NormalTok{)}
+\CommentTok{\# 绘图}
+\FunctionTok{ggplot}\NormalTok{(comparison\_df, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ Probability, }\AttributeTok{color =}\NormalTok{ Type)) }\SpecialCharTok{+}
+\FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{data =} \FunctionTok{subset}\NormalTok{(comparison\_df, Type }\SpecialCharTok{==} \StringTok{"Observed"}\NormalTok{),}
+\FunctionTok{aes}\NormalTok{(}\AttributeTok{size =}\NormalTok{ p\_data}\SpecialCharTok{$}\NormalTok{count[}\FunctionTok{match}\NormalTok{(k\_range, p\_data}\SpecialCharTok{$}\NormalTok{k)])) }\SpecialCharTok{+}
+\FunctionTok{geom\_line}\NormalTok{(}\AttributeTok{data =} \FunctionTok{subset}\NormalTok{(comparison\_df, Type }\SpecialCharTok{!=} \StringTok{"Observed"}\NormalTok{),}
+\AttributeTok{linewidth =} \FloatTok{1.2}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{scale\_color\_manual}\NormalTok{(}\AttributeTok{values =} \FunctionTok{c}\NormalTok{(}\StringTok{"Observed"} \OtherTok{=} \StringTok{"black"}\NormalTok{,}
+\StringTok{"Linear"} \OtherTok{=} \StringTok{"blue"}\NormalTok{,}
+\StringTok{"Logistic"} \OtherTok{=} \StringTok{"red"}\NormalTok{)) }\SpecialCharTok{+}
+\FunctionTok{labs}\NormalTok{(}\AttributeTok{title =} \StringTok{"Comparison of Adoption Probability Models"}\NormalTok{,}
+\AttributeTok{x =} \StringTok{"Number of Prior{-}Adoptee Contacts (k)"}\NormalTok{,}
+\AttributeTok{y =} \StringTok{"Adoption Probability (p\_k)"}\NormalTok{,}
+\AttributeTok{color =} \StringTok{"Model Type"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{scale\_size\_continuous}\NormalTok{(}\AttributeTok{name =} \StringTok{"Sample Size"}\NormalTok{, }\AttributeTok{range =} \FunctionTok{c}\NormalTok{(}\DecValTok{2}\NormalTok{, }\DecValTok{6}\NormalTok{)) }\SpecialCharTok{+}
+\FunctionTok{theme\_minimal}\NormalTok{() }\SpecialCharTok{+}
+\FunctionTok{theme}\NormalTok{(}\AttributeTok{legend.position =} \StringTok{"bottom"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
 \includegraphics{Homework-04_files/figure-latex/unnamed-chunk-7-1.pdf}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 模型选择建议}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{模型选择建议:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 
-## 模型选择建议:
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"推荐使用Logistic模型，原因如下:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 推荐使用Logistic模型，原因如下:
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"1. 它捕捉了典型的S形扩散模式}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 1. 它捕捉了典型的S形扩散模式
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"2. 预测值始终在0到1的合理范围内}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 2. 预测值始终在0到1的合理范围内
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"3. 考虑了额外联系人的边际效应递减规律}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 3. 考虑了额外联系人的边际效应递减规律
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"4. 对观测数据拟合更好（特别是在高k值区域）}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 4. 对观测数据拟合更好（特别是在高k值区域）
-\end{verbatim}
 
 \emph{For quibblers, pedants, and idle hands itching for work to do}:
 The \(p_k\) values from problem 3 aren't all equally precise, because
@@ -796,333 +479,100 @@ change? How much do the plotted curves in (4c) change?
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ControlFlowTok{if}\NormalTok{ (}\SpecialCharTok{!}\FunctionTok{exists}\NormalTok{(}\StringTok{"p\_data"}\NormalTok{)) \{}
-  \FunctionTok{stop}\NormalTok{(}\StringTok{"请先执行问题3b的代码以创建p\_data"}\NormalTok{)}
-\NormalTok{\}}
-
-\CommentTok{\# 1. 计算方差估计V\_k = p\_k(1{-}p\_k)/n\_k}
-\NormalTok{p\_data}\SpecialCharTok{$}\NormalTok{V\_k }\OtherTok{\textless{}{-}} \FunctionTok{with}\NormalTok{(p\_data, p\_k }\SpecialCharTok{*}\NormalTok{ (}\DecValTok{1} \SpecialCharTok{{-}}\NormalTok{ p\_k) }\SpecialCharTok{/}\NormalTok{ n)}
-
-\CommentTok{\# 2. 处理方差估计中的边界值问题}
-\NormalTok{min\_v }\OtherTok{\textless{}{-}} \FunctionTok{min}\NormalTok{(p\_data}\SpecialCharTok{$}\NormalTok{V\_k[p\_data}\SpecialCharTok{$}\NormalTok{V\_k }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{], }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{/} \DecValTok{100}
-\NormalTok{p\_data}\SpecialCharTok{$}\NormalTok{V\_k }\OtherTok{\textless{}{-}} \FunctionTok{ifelse}\NormalTok{(p\_data}\SpecialCharTok{$}\NormalTok{V\_k }\SpecialCharTok{\textless{}=} \DecValTok{0} \SpecialCharTok{|} \FunctionTok{is.na}\NormalTok{(p\_data}\SpecialCharTok{$}\NormalTok{V\_k), min\_v, p\_data}\SpecialCharTok{$}\NormalTok{V\_k)}
-
-\CommentTok{\# 3. 显示方差估计结果}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{方差估计结果 (每个k值的精度):}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 
-## 方差估计结果 (每个k值的精度):
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{print}\NormalTok{(p\_data[, }\FunctionTok{c}\NormalTok{(}\StringTok{"k"}\NormalTok{, }\StringTok{"n"}\NormalTok{, }\StringTok{"p\_k"}\NormalTok{, }\StringTok{"V\_k"}\NormalTok{)])}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## # A tibble: 10 x 4
-##        k     n    p_k        V_k
-##    <int> <int>  <dbl>      <dbl>
-##  1     0   406 0.0961 0.000214  
-##  2     1   198 0.111  0.000499  
-##  3     2   200 0.115  0.000509  
-##  4     3   106 0.123  0.00102   
-##  5     4    29 0.207  0.00566   
-##  6     5    20 0.1    0.0045    
-##  7     6    15 0.133  0.00770   
-##  8     7     3 0      0.00000214
-##  9     8     2 0.5    0.125     
-## 10     9     2 0.5    0.125
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 4. 加权线性模型估计}
-\NormalTok{weighted\_linear }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(p\_k }\SpecialCharTok{\textasciitilde{}}\NormalTok{ k, }\AttributeTok{data =}\NormalTok{ p\_data, }\AttributeTok{weights =} \DecValTok{1}\SpecialCharTok{/}\NormalTok{V\_k)}
-
-\CommentTok{\# 5. 加权Logistic模型估计}
-\NormalTok{weighted\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{nls}\NormalTok{(}
-\NormalTok{  p\_k }\SpecialCharTok{\textasciitilde{}} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b }\SpecialCharTok{*}\NormalTok{ k) }\SpecialCharTok{/}\NormalTok{ (}\DecValTok{1} \SpecialCharTok{+} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b }\SpecialCharTok{*}\NormalTok{ k)),}
-  \AttributeTok{data =}\NormalTok{ p\_data,}
-  \AttributeTok{start =} \FunctionTok{list}\NormalTok{(}\AttributeTok{a =} \SpecialCharTok{{-}}\DecValTok{3}\NormalTok{, }\AttributeTok{b =} \FloatTok{0.2}\NormalTok{),}
-  \AttributeTok{weights =} \DecValTok{1}\SpecialCharTok{/}\NormalTok{V\_k,}
-  \AttributeTok{algorithm =} \StringTok{"port"}\NormalTok{,}
-  \AttributeTok{control =} \FunctionTok{nls.control}\NormalTok{(}\AttributeTok{maxiter =} \DecValTok{500}\NormalTok{, }\AttributeTok{warnOnly =} \ConstantTok{TRUE}\NormalTok{)}
+\CommentTok{\# 基于问题 3b 的 p\_data 计算方差估计}
+\NormalTok{p\_data }\OtherTok{\textless{}{-}}\NormalTok{ p\_data }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{mutate}\NormalTok{(}
+\AttributeTok{V\_k =}\NormalTok{ p\_k }\SpecialCharTok{*}\NormalTok{ (}\DecValTok{1} \SpecialCharTok{{-}}\NormalTok{ p\_k) }\SpecialCharTok{/}\NormalTok{ count, }\CommentTok{\# 方差估计}
+\AttributeTok{weight =} \FunctionTok{ifelse}\NormalTok{(V\_k }\SpecialCharTok{\textgreater{}} \DecValTok{0}\NormalTok{, }\DecValTok{1}\SpecialCharTok{/}\NormalTok{V\_k, }\DecValTok{0}\NormalTok{) }\CommentTok{\# 权重（方差的倒数）}
+\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{filter}\NormalTok{(}\SpecialCharTok{!}\FunctionTok{is.na}\NormalTok{(V\_k) }\SpecialCharTok{\&} \FunctionTok{is.finite}\NormalTok{(V\_k)) }\CommentTok{\# 移除无效值}
+\CommentTok{\# 加权线性回归}
+\NormalTok{weighted\_linear\_model }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(p\_k }\SpecialCharTok{\textasciitilde{}}\NormalTok{ k, }\AttributeTok{data =}\NormalTok{ p\_data, }\AttributeTok{weights =}\NormalTok{ weight)}
+\NormalTok{weighted\_linear\_coef }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(weighted\_linear\_model)}
+\CommentTok{\# 加权非线性回归}
+\NormalTok{weighted\_logistic\_model }\OtherTok{\textless{}{-}} \FunctionTok{nls}\NormalTok{(}
+\NormalTok{p\_k }\SpecialCharTok{\textasciitilde{}} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b}\SpecialCharTok{*}\NormalTok{k)}\SpecialCharTok{/}\NormalTok{(}\DecValTok{1} \SpecialCharTok{+} \FunctionTok{exp}\NormalTok{(a }\SpecialCharTok{+}\NormalTok{ b}\SpecialCharTok{*}\NormalTok{k)),}
+\AttributeTok{data =}\NormalTok{ p\_data,}
+\AttributeTok{weights =}\NormalTok{ weight,}
+\AttributeTok{start =} \FunctionTok{list}\NormalTok{(}\AttributeTok{a =} \SpecialCharTok{{-}}\DecValTok{4}\NormalTok{, }\AttributeTok{b =} \FloatTok{0.1}\NormalTok{)}
 \NormalTok{)}
-
-\CommentTok{\# 6. 获取加权参数估计}
-\NormalTok{a\_weighted\_linear }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(weighted\_linear)[}\DecValTok{1}\NormalTok{]}
-\NormalTok{b\_weighted\_linear }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(weighted\_linear)[}\DecValTok{2}\NormalTok{]}
-\NormalTok{a\_weighted\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(weighted\_logistic)[}\DecValTok{1}\NormalTok{]}
-\NormalTok{b\_weighted\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(weighted\_logistic)[}\DecValTok{2}\NormalTok{]}
-
-\CommentTok{\# 7. 参数比较分析}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{线性模型参数比较:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\NormalTok{weighted\_logistic\_coef }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(weighted\_logistic\_model)}
 \end{Highlighting}
 \end{Shaded}
 
-\begin{verbatim}
-## 
-## 线性模型参数比较:
-\end{verbatim}
+\subsubsection{参数比较}\label{ux53c2ux6570ux6bd4ux8f83}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"未加权: a ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(}\FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{1}\NormalTok{], }\DecValTok{4}\NormalTok{), }\StringTok{"b ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(}\FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{2}\NormalTok{], }\DecValTok{4}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 未加权: a = 0.0328 b = 0.0346
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"加权后: a ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(a\_weighted\_linear, }\DecValTok{4}\NormalTok{), }\StringTok{"b ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(b\_weighted\_linear, }\DecValTok{4}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 加权后: a = 0.1187 b = -0.0169
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 计算线性模型变化量}
-\NormalTok{delta\_a\_linear }\OtherTok{\textless{}{-}}\NormalTok{ a\_weighted\_linear }\SpecialCharTok{{-}} \FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{1}\NormalTok{]}
-\NormalTok{delta\_b\_linear }\OtherTok{\textless{}{-}}\NormalTok{ b\_weighted\_linear }\SpecialCharTok{{-}} \FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{2}\NormalTok{]}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"变化量: Δa ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_a\_linear, }\DecValTok{4}\NormalTok{), }\StringTok{"Δb ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_b\_linear, }\DecValTok{4}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 变化量: Δa = 0.0858 Δb = -0.0515
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 计算线性模型变化率}
-\NormalTok{delta\_a\_rate\_linear }\OtherTok{\textless{}{-}} \FunctionTok{abs}\NormalTok{(delta\_a\_linear) }\SpecialCharTok{/} \FunctionTok{abs}\NormalTok{(}\FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{1}\NormalTok{])}
-\NormalTok{delta\_b\_rate\_linear }\OtherTok{\textless{}{-}} \FunctionTok{abs}\NormalTok{(delta\_b\_linear) }\SpecialCharTok{/} \FunctionTok{abs}\NormalTok{(}\FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{2}\NormalTok{])}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"变化率: |Δa/a| ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_a\_rate\_linear, }\DecValTok{3}\NormalTok{), }\StringTok{"|Δb/b| ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_b\_rate\_linear, }\DecValTok{3}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 变化率: |Δa/a| = 2.614 |Δb/b| = 1.489
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{Logistic模型参数比较:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 
-## Logistic模型参数比较:
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"未加权: a ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(}\FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{1}\NormalTok{], }\DecValTok{4}\NormalTok{), }\StringTok{"b ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(}\FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{2}\NormalTok{], }\DecValTok{4}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 未加权: a = -3.6873 b = 0.3834
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"加权后: a ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(a\_weighted\_logistic, }\DecValTok{4}\NormalTok{), }\StringTok{"b ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(b\_weighted\_logistic, }\DecValTok{4}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 加权后: a = -2.0182 b = -0.5462
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 计算Logistic模型变化量}
-\NormalTok{delta\_a\_logistic }\OtherTok{\textless{}{-}}\NormalTok{ a\_weighted\_logistic }\SpecialCharTok{{-}} \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{1}\NormalTok{]}
-\NormalTok{delta\_b\_logistic }\OtherTok{\textless{}{-}}\NormalTok{ b\_weighted\_logistic }\SpecialCharTok{{-}} \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{2}\NormalTok{]}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"变化量: Δa ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_a\_logistic, }\DecValTok{4}\NormalTok{), }\StringTok{"Δb ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_b\_logistic, }\DecValTok{4}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 变化量: Δa = 1.669 Δb = -0.9296
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 计算Logistic模型变化率}
-\NormalTok{delta\_a\_rate\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{abs}\NormalTok{(delta\_a\_logistic) }\SpecialCharTok{/} \FunctionTok{abs}\NormalTok{(}\FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{1}\NormalTok{])}
-\NormalTok{delta\_b\_rate\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{abs}\NormalTok{(delta\_b\_logistic) }\SpecialCharTok{/} \FunctionTok{abs}\NormalTok{(}\FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{2}\NormalTok{])}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"变化率: |Δa/a| ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_a\_rate\_logistic, }\DecValTok{3}\NormalTok{), }\StringTok{"|Δb/b| ="}\NormalTok{, }\FunctionTok{round}\NormalTok{(delta\_b\_rate\_logistic, }\DecValTok{3}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 变化率: |Δa/a| = 0.453 |Δb/b| = 2.424
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 8. 创建参数比较表}
+\CommentTok{\# 创建参数比较表格}
 \NormalTok{param\_comparison }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
-  \AttributeTok{Model =} \FunctionTok{c}\NormalTok{(}\StringTok{"线性(未加权)"}\NormalTok{, }\StringTok{"线性(加权)"}\NormalTok{, }\StringTok{"Logistic(未加权)"}\NormalTok{, }\StringTok{"Logistic(加权)"}\NormalTok{),}
-  \AttributeTok{a =} \FunctionTok{c}\NormalTok{(}\FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{1}\NormalTok{], a\_weighted\_linear, }
-        \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{1}\NormalTok{], a\_weighted\_logistic),}
-  \AttributeTok{b =} \FunctionTok{c}\NormalTok{(}\FunctionTok{coef}\NormalTok{(linear\_model)[}\DecValTok{2}\NormalTok{], b\_weighted\_linear, }
-        \FunctionTok{coef}\NormalTok{(logistic\_model)[}\DecValTok{2}\NormalTok{], b\_weighted\_logistic)}
+\AttributeTok{Model =} \FunctionTok{c}\NormalTok{(}\StringTok{"Linear"}\NormalTok{, }\StringTok{"Linear (Weighted)"}\NormalTok{, }\StringTok{"Logistic"}\NormalTok{, }\StringTok{"Logistic (Weighted)"}\NormalTok{),}
+\AttributeTok{a =} \FunctionTok{c}\NormalTok{(linear\_coef[}\DecValTok{1}\NormalTok{], weighted\_linear\_coef[}\DecValTok{1}\NormalTok{],}
+\NormalTok{logistic\_coef[}\DecValTok{1}\NormalTok{], weighted\_logistic\_coef[}\DecValTok{1}\NormalTok{]),}
+\AttributeTok{b =} \FunctionTok{c}\NormalTok{(linear\_coef[}\DecValTok{2}\NormalTok{], weighted\_linear\_coef[}\DecValTok{2}\NormalTok{],}
+\NormalTok{logistic\_coef[}\DecValTok{2}\NormalTok{], weighted\_logistic\_coef[}\DecValTok{2}\NormalTok{])}
 \NormalTok{)}
-
+\CommentTok{\# 计算变化百分比}
+\NormalTok{param\_comparison }\OtherTok{\textless{}{-}}\NormalTok{ param\_comparison }\SpecialCharTok{\%\textgreater{}\%}
+\FunctionTok{mutate}\NormalTok{(}
+\AttributeTok{a\_change =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{100}\SpecialCharTok{*}\NormalTok{(a[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{{-}}\NormalTok{a[}\DecValTok{1}\NormalTok{])}\SpecialCharTok{/}\NormalTok{a[}\DecValTok{1}\NormalTok{], }\DecValTok{0}\NormalTok{, }\DecValTok{100}\SpecialCharTok{*}\NormalTok{(a[}\DecValTok{4}\NormalTok{]}\SpecialCharTok{{-}}\NormalTok{a[}\DecValTok{3}\NormalTok{])}\SpecialCharTok{/}\NormalTok{a[}\DecValTok{3}\NormalTok{]),}
+\AttributeTok{b\_change =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{100}\SpecialCharTok{*}\NormalTok{(b[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{{-}}\NormalTok{b[}\DecValTok{1}\NormalTok{])}\SpecialCharTok{/}\NormalTok{b[}\DecValTok{1}\NormalTok{], }\DecValTok{0}\NormalTok{, }\DecValTok{100}\SpecialCharTok{*}\NormalTok{(b[}\DecValTok{4}\NormalTok{]}\SpecialCharTok{{-}}\NormalTok{b[}\DecValTok{3}\NormalTok{])}\SpecialCharTok{/}\NormalTok{b[}\DecValTok{3}\NormalTok{])}
+\NormalTok{)}
 \FunctionTok{print}\NormalTok{(param\_comparison)}
 \end{Highlighting}
 \end{Shaded}
 
 \begin{verbatim}
-##              Model          a           b
-## 1     线性(未加权)  0.0328350  0.03459315
-## 2       线性(加权)  0.1186559 -0.01692270
-## 3 Logistic(未加权) -3.6872734  0.38343451
-## 4   Logistic(加权) -2.0182252 -0.54617448
+##                 Model           a          b  a_change  b_change
+## 1              Linear  0.09470668 0.01260200  0.000000   0.00000
+## 2   Linear (Weighted)  0.09637512 0.01050772  1.761692 -16.61857
+## 3            Logistic -2.25484997 0.12288660  0.000000   0.00000
+## 4 Logistic (Weighted) -2.23476722 0.10372101 -0.890647 -15.59616
 \end{verbatim}
+
+\subsubsection{曲线比较}\label{ux66f2ux7ebfux6bd4ux8f83}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\CommentTok{\# 9. 创建曲线比较数据}
-\NormalTok{k\_range }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}\AttributeTok{k =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.1}\NormalTok{))}
-\NormalTok{k\_range}\SpecialCharTok{$}\NormalTok{linear\_pred }\OtherTok{\textless{}{-}} \FunctionTok{predict}\NormalTok{(linear\_model, }\AttributeTok{newdata =}\NormalTok{ k\_range)}
-\NormalTok{k\_range}\SpecialCharTok{$}\NormalTok{logistic\_pred }\OtherTok{\textless{}{-}} \FunctionTok{predict}\NormalTok{(logistic\_model, }\AttributeTok{newdata =}\NormalTok{ k\_range)}
-\NormalTok{k\_range}\SpecialCharTok{$}\NormalTok{weighted\_linear\_pred }\OtherTok{\textless{}{-}} \FunctionTok{predict}\NormalTok{(weighted\_linear, }\AttributeTok{newdata =}\NormalTok{ k\_range)}
-\NormalTok{k\_range}\SpecialCharTok{$}\NormalTok{weighted\_logistic\_pred }\OtherTok{\textless{}{-}} \FunctionTok{predict}\NormalTok{(weighted\_logistic, }\AttributeTok{newdata =}\NormalTok{ k\_range)}
-
-\CommentTok{\# 10. 绘制加权与未加权模型比较图}
-\FunctionTok{ggplot}\NormalTok{() }\SpecialCharTok{+}
-  \FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{data =}\NormalTok{ p\_data, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ p\_k), }\AttributeTok{size =} \DecValTok{3}\NormalTok{, }\AttributeTok{color =} \StringTok{"steelblue"}\NormalTok{, }\AttributeTok{alpha =} \FloatTok{0.8}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\AttributeTok{data =}\NormalTok{ k\_range, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ linear\_pred, }\AttributeTok{color =} \StringTok{"Linear(unweighted)"}\NormalTok{), }\AttributeTok{linewidth =} \DecValTok{1}\NormalTok{, }\AttributeTok{linetype =} \StringTok{"dashed"}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\AttributeTok{data =}\NormalTok{ k\_range, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ weighted\_linear\_pred, }\AttributeTok{color =} \StringTok{"Linear(weighted)"}\NormalTok{), }\AttributeTok{linewidth =} \FloatTok{1.2}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\AttributeTok{data =}\NormalTok{ k\_range, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ logistic\_pred, }\AttributeTok{color =} \StringTok{"Logistic(unweighted)"}\NormalTok{), }\AttributeTok{linewidth =} \DecValTok{1}\NormalTok{, }\AttributeTok{linetype =} \StringTok{"dashed"}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{geom\_line}\NormalTok{(}\AttributeTok{data =}\NormalTok{ k\_range, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ weighted\_logistic\_pred, }\AttributeTok{color =} \StringTok{"Logistic((weighted)"}\NormalTok{), }\AttributeTok{linewidth =} \FloatTok{1.2}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{scale\_color\_manual}\NormalTok{(}
-    \AttributeTok{name =} \StringTok{"model"}\NormalTok{,}
-    \AttributeTok{values =} \FunctionTok{c}\NormalTok{(}
-      \StringTok{"Linear(unweighted)"} \OtherTok{=} \StringTok{"coral"}\NormalTok{,}
-      \StringTok{"Linear(weighted)"} \OtherTok{=} \StringTok{"red"}\NormalTok{,}
-      \StringTok{"Logistic(unweighted)"} \OtherTok{=} \StringTok{"darkgreen"}\NormalTok{,}
-      \StringTok{"Logistic((weighted)"} \OtherTok{=} \StringTok{"forestgreen"}
-\NormalTok{    )}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{labs}\NormalTok{(}
-    \AttributeTok{title =} \StringTok{"Comparison between weighted and unweighted models"}\NormalTok{,}
-    \AttributeTok{subtitle =} \StringTok{"The Impact of Variance Weighting on Model Fitting"}\NormalTok{,}
-    \AttributeTok{x =} \StringTok{"Number of contacts adopted before this month (k)"}\NormalTok{,}
-    \AttributeTok{y =} \StringTok{"Adoption probability (pk)"}\NormalTok{,}
-    \AttributeTok{caption =} \StringTok{"Dashed line: Unweighted model | Solid line: Weighted model}\SpecialCharTok{\textbackslash{}n}\StringTok{Dots: Observed probability values"}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{theme\_minimal}\NormalTok{(}\AttributeTok{base\_size =} \DecValTok{14}\NormalTok{) }\SpecialCharTok{+}
-  \FunctionTok{theme}\NormalTok{(}
-    \AttributeTok{plot.title =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{, }\AttributeTok{face =} \StringTok{"bold"}\NormalTok{),}
-    \AttributeTok{plot.subtitle =} \FunctionTok{element\_text}\NormalTok{(}\AttributeTok{hjust =} \FloatTok{0.5}\NormalTok{),}
-    \AttributeTok{legend.position =} \StringTok{"bottom"}\NormalTok{,}
-    \AttributeTok{legend.title =} \FunctionTok{element\_blank}\NormalTok{()}
-\NormalTok{  ) }\SpecialCharTok{+}
-  \FunctionTok{scale\_x\_continuous}\NormalTok{(}\AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{, }\AttributeTok{by =} \DecValTok{2}\NormalTok{), }\AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\DecValTok{20}\NormalTok{)) }\SpecialCharTok{+}
-  \FunctionTok{scale\_y\_continuous}\NormalTok{(}\AttributeTok{limits =} \FunctionTok{c}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{), }\AttributeTok{breaks =} \FunctionTok{seq}\NormalTok{(}\DecValTok{0}\NormalTok{, }\FloatTok{0.5}\NormalTok{, }\AttributeTok{by =} \FloatTok{0.1}\NormalTok{),}
-                     \AttributeTok{labels =}\NormalTok{ scales}\SpecialCharTok{::}\FunctionTok{percent\_format}\NormalTok{(}\AttributeTok{accuracy =} \DecValTok{1}\NormalTok{))}
+\CommentTok{\# 生成预测数据}
+\NormalTok{k\_range }\OtherTok{\textless{}{-}} \DecValTok{0}\SpecialCharTok{:}\DecValTok{20}
+\NormalTok{orig\_linear }\OtherTok{\textless{}{-}}\NormalTok{ linear\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ linear\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range}
+\NormalTok{weighted\_linear }\OtherTok{\textless{}{-}}\NormalTok{ weighted\_linear\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ weighted\_linear\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range}
+\NormalTok{orig\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{exp}\NormalTok{(logistic\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ logistic\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range)}\SpecialCharTok{/}
+\NormalTok{(}\DecValTok{1} \SpecialCharTok{+} \FunctionTok{exp}\NormalTok{(logistic\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ logistic\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range))}
+\NormalTok{weighted\_logistic }\OtherTok{\textless{}{-}} \FunctionTok{exp}\NormalTok{(weighted\_logistic\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ weighted\_logistic\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range)}\SpecialCharTok{/}
+\NormalTok{(}\DecValTok{1} \SpecialCharTok{+} \FunctionTok{exp}\NormalTok{(weighted\_logistic\_coef[}\DecValTok{1}\NormalTok{] }\SpecialCharTok{+}\NormalTok{ weighted\_logistic\_coef[}\DecValTok{2}\NormalTok{]}\SpecialCharTok{*}\NormalTok{k\_range))}
+\CommentTok{\# 创建比较数据框}
+\NormalTok{curve\_comparison }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+\AttributeTok{k =} \FunctionTok{rep}\NormalTok{(k\_range, }\DecValTok{4}\NormalTok{),}
+\AttributeTok{Probability =} \FunctionTok{c}\NormalTok{(orig\_linear, weighted\_linear, orig\_logistic, weighted\_logistic),}
+\AttributeTok{Model =} \FunctionTok{rep}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\StringTok{"Linear"}\NormalTok{, }\StringTok{"Linear (Weighted)"}\NormalTok{, }\StringTok{"Logistic"}\NormalTok{, }\StringTok{"Logistic (Weighted)"}\NormalTok{),}
+\AttributeTok{each =} \FunctionTok{length}\NormalTok{(k\_range))}
+\NormalTok{)}
+\CommentTok{\# 绘图}
+\FunctionTok{ggplot}\NormalTok{(curve\_comparison, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ Probability, }\AttributeTok{color =}\NormalTok{ Model, }\AttributeTok{linetype =}\NormalTok{ Model)) }\SpecialCharTok{+}
+\FunctionTok{geom\_line}\NormalTok{(}\AttributeTok{linewidth =} \FloatTok{1.2}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{geom\_point}\NormalTok{(}\AttributeTok{data =}\NormalTok{ p\_data, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x =}\NormalTok{ k, }\AttributeTok{y =}\NormalTok{ p\_k, }\AttributeTok{size =}\NormalTok{ count),}
+\AttributeTok{color =} \StringTok{"black"}\NormalTok{, }\AttributeTok{inherit.aes =} \ConstantTok{FALSE}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{scale\_color\_manual}\NormalTok{(}\AttributeTok{values =} \FunctionTok{c}\NormalTok{(}\StringTok{"Linear"} \OtherTok{=} \StringTok{"blue"}\NormalTok{, }\StringTok{"Linear (Weighted)"} \OtherTok{=} \StringTok{"dodgerblue"}\NormalTok{,}
+\StringTok{"Logistic"} \OtherTok{=} \StringTok{"red"}\NormalTok{, }\StringTok{"Logistic (Weighted)"} \OtherTok{=} \StringTok{"salmon"}\NormalTok{)) }\SpecialCharTok{+}
+\FunctionTok{scale\_linetype\_manual}\NormalTok{(}\AttributeTok{values =} \FunctionTok{c}\NormalTok{(}\StringTok{"Linear"} \OtherTok{=} \StringTok{"solid"}\NormalTok{, }\StringTok{"Linear (Weighted)"} \OtherTok{=} \StringTok{"dashed"}\NormalTok{,}
+\StringTok{"Logistic"} \OtherTok{=} \StringTok{"solid"}\NormalTok{, }\StringTok{"Logistic (Weighted)"} \OtherTok{=} \StringTok{"dashed"}\NormalTok{)) }\SpecialCharTok{+}
+\FunctionTok{labs}\NormalTok{(}\AttributeTok{title =} \StringTok{"Weighted vs Unweighted Model Comparison"}\NormalTok{,}
+\AttributeTok{subtitle =} \StringTok{"Points show observed probabilities (size = sample size)"}\NormalTok{,}
+\AttributeTok{x =} \StringTok{"Number of Prior{-}Adoptee Contacts (k)"}\NormalTok{,}
+\AttributeTok{y =} \StringTok{"Adoption Probability (p\_k)"}\NormalTok{) }\SpecialCharTok{+}
+\FunctionTok{scale\_size\_continuous}\NormalTok{(}\AttributeTok{name =} \StringTok{"Sample Size"}\NormalTok{, }\AttributeTok{range =} \FunctionTok{c}\NormalTok{(}\DecValTok{2}\NormalTok{, }\DecValTok{6}\NormalTok{)) }\SpecialCharTok{+}
+\FunctionTok{theme\_minimal}\NormalTok{() }\SpecialCharTok{+}
+\FunctionTok{theme}\NormalTok{(}\AttributeTok{legend.position =} \StringTok{"bottom"}\NormalTok{)}
 \end{Highlighting}
 \end{Shaded}
 
-\includegraphics{Homework-04_files/figure-latex/unnamed-chunk-8-1.pdf}
+\includegraphics{Homework-04_files/figure-latex/unnamed-chunk-10-1.pdf}
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\CommentTok{\# 11. 结论与建议}
-\FunctionTok{cat}\NormalTok{(}\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{结论与建议:}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 
-## 结论与建议:
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"1. 加权估计显著影响线性模型参数（变化率 \textgreater{} 40\%），但对Logistic模型影响较小（\textless{} 9\%）}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 1. 加权估计显著影响线性模型参数（变化率 > 40%），但对Logistic模型影响较小（< 9%）
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"2. Logistic模型结构更稳健，更适合概率数据建模}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 2. Logistic模型结构更稳健，更适合概率数据建模
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"3. 在正式分析中应使用加权Logistic模型，因其：}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 3. 在正式分析中应使用加权Logistic模型，因其：
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"   {-} 考虑概率估计的精度差异}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-##    - 考虑概率估计的精度差异
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"   {-} 保持S形扩散模式的准确拟合}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-##    - 保持S形扩散模式的准确拟合
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"   {-} 提供更可靠的参数估计}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-##    - 提供更可靠的参数估计
-\end{verbatim}
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{cat}\NormalTok{(}\StringTok{"4. 线性模型对加权敏感，不推荐用于概率数据建模}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
-\end{Highlighting}
-\end{Shaded}
-
-\begin{verbatim}
-## 4. 线性模型对加权敏感，不推荐用于概率数据建模
-\end{verbatim}
+通过比较可以发现，Logistic
+模型参数变化较小，更稳健，受加权影响较小；加权估计降低了对样本
+量小、高方差数据点的敏感性，更准确地反映了高精度估计（大样本量点）的影响。因此，加权
+Logistic 模 型平衡了拟合优度和稳定性。
 
 \end{document}
